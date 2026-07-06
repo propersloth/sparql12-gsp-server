@@ -76,8 +76,9 @@ describe('GspEnvironmentVariables', () => {
 describe('GspConfiguration', () => {
   it('fromEnvironment parses streamThresholdBytes correctly', async () => {
     const cfg = await GspConfiguration.fromEnvironment({
-      ...VALID_BASE,
       GSP_DATABASE_URL: 'postgresql://localhost/test',
+      GSP_AUTH_ENABLED: 'false',
+      GSP_STREAM_THRESHOLD: '10MB',
     });
     expect(cfg.server.streamThresholdBytes).toBe(10 * 1024 * 1024);
   });

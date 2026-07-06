@@ -18,7 +18,11 @@ export class GspEnvironmentVariables {
   baseUrl?: string = 'http://localhost:3000';
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === '1')
+  @Transform(({ value }) =>
+    value === undefined || value === null || value === ''
+      ? undefined
+      : value === true || value === 'true' || value === '1',
+  )
   @IsBoolean()
   authEnabled?: boolean;
 
@@ -32,12 +36,20 @@ export class GspEnvironmentVariables {
   apiKeys?: string[] = [];
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === '1')
+  @Transform(({ value }) =>
+    value === undefined || value === null || value === ''
+      ? undefined
+      : value === true || value === 'true' || value === '1',
+  )
   @IsBoolean()
   patchEnabled?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === '1')
+  @Transform(({ value }) =>
+    value === undefined || value === null || value === ''
+      ? undefined
+      : value === true || value === 'true' || value === '1',
+  )
   @IsBoolean()
   otelEnabled?: boolean;
 
