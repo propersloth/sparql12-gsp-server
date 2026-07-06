@@ -13,8 +13,8 @@ export const DEFAULT_GRAPH_IRI = 'urn:x-arq:DefaultGraph';
 function fromDatabaseVersion(value: string): number {
   const version = Number.parseInt(value, 10);
 
-  if (Number.isNaN(version)) {
-    throw new Error(`Invalid graph version value: ${value}`);
+  if (Number.isNaN(version) || !Number.isSafeInteger(version)) {
+    throw new Error(`Invalid or unsafe graph version value: ${value}`);
   }
 
   return version;
