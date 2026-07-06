@@ -1,0 +1,7 @@
+@prefix ex: <http://example.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:node1 ex:stringProp "text" .
+ex:node1 ex:intProp "42"^^xsd:integer .
+ex:node1 ex:boolProp "true"^^xsd:boolean .
+ex:node1 ex:dateProp "2024-01-15"^^xsd:date .

@@ -1,0 +1,7 @@
+@prefix ex: <http://example.org/> .
+
+ex:s1 ex:p1 _:b1 .
+_:b1 ex:p2 "value1" .
+
+ex:s2 ex:p1 _:b2 .
+_:b2 ex:p2 "value2" .

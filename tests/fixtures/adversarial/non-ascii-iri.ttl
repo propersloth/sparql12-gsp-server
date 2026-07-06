@@ -1,0 +1,1 @@
+<http://example.org/gráph> <http://example.org/predicate> "värde"@sv .

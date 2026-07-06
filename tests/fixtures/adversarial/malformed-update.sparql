@@ -1,0 +1,4 @@
+# Malformed SPARQL Update - syntax error
+INSERT DATA { <http://ex.org/s> <http://ex.org/p> }
+; # Missing subject in second operation
+DELETE WHERE { }
