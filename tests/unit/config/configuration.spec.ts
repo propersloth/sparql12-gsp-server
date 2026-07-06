@@ -29,7 +29,7 @@ describe('GspEnvironmentVariables', () => {
     expect(c.baseUrl).toBe('http://localhost:3000');
     expect(c.maxPayloadSize).toBe('100MB');
     expect(c.streamThreshold).toBe('10MB');
-    expect(c.patchEnabled).toBeUndefined(); // default applied in class field initializer
+    expect(c.patchEnabled).toBeUndefined(); // default (true) applied in GspConfiguration constructor
   });
 
   it('patchEnabled defaults to true', async () => {

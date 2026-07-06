@@ -9,5 +9,5 @@ export function parsePayloadSize(value: string): number {
     GB: 1024 ** 3,
     B: 1,
   };
-  return Math.floor(n * (multipliers[unit] ?? 1));
+  return Math.floor(n * multipliers[unit]);
 }
