@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!-- Invalid RDF/XML - missing RDF root element -->
+<notRdf>
+  <something>invalid</something>
+</notRdf>

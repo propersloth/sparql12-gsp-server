@@ -1,0 +1,9 @@
+@prefix ex: <http://example.org/> .
+
+ex:target {
+  _:left ex:p1 "left" .
+}
+
+ex:target {
+  _:right ex:p2 "right" .
+}
