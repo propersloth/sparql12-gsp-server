@@ -69,7 +69,7 @@ flowchart TD
 
 **Justification:** Future SPARQL Query endpoint planned. Normalized storage enables native SQL queries on triple patterns.
 
-> **Amendment D-01/D-02:** The original schema had a logical contradiction (`iri NOT NULL` and a CHECK requiring `iri IS NULL` for the default graph) and a trigger with a DELETE bug (`NEW.graph_id` is NULL on row-level DELETE triggers). Both are corrected below. The default graph uses a reserved sentinel IRI; version is incremented by the mutation transaction, not a trigger.
+> **Amendment D-01/D-02/D-07:** The original schema had a logical contradiction (`iri NOT NULL` and a CHECK requiring `iri IS NULL` for the default graph) and a trigger with a DELETE bug (`NEW.graph_id` is NULL on row-level DELETE triggers). Both are corrected below. The default graph uses a reserved sentinel IRI; version is incremented by the mutation transaction, not a trigger; blank-node subjects are stored with an explicit discriminator instead of being forced into Skolem IRIs.
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -96,6 +96,7 @@ CREATE TABLE triples (
   id          BIGSERIAL PRIMARY KEY,
   graph_id    UUID NOT NULL REFERENCES graphs(id) ON DELETE CASCADE,
   subject     TEXT NOT NULL,
+  subject_type CHAR(1) NOT NULL CHECK (subject_type IN ('U', 'B')),
   predicate   TEXT NOT NULL,
   object      TEXT NOT NULL,
   object_type CHAR(1) NOT NULL CHECK (object_type IN ('U', 'L', 'B')),
@@ -116,7 +117,7 @@ CREATE INDEX idx_triples_graph_object    ON triples(graph_id, object);
 -- DB-level deduplication guard: prevents duplicate triples from implementation bugs or retries.
 -- Application code uses mergeNormalized() for merge logic, but this index is the safety net.
 CREATE UNIQUE INDEX idx_triples_unique ON triples(
-  graph_id, subject, predicate, object, object_type,
+  graph_id, subject, subject_type, predicate, object, object_type,
   COALESCE(lang_tag, ''), COALESCE(datatype, '')
 );
 -- TripleRepository.insert() MUST use INSERT ... ON CONFLICT DO NOTHING when this index is present.
