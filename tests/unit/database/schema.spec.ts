@@ -208,7 +208,7 @@ describe('Database Schema', () => {
       );
       await dataSource.query(
         `INSERT INTO triples (graph_id, subject, subject_type, predicate, object, object_type)
-         VALUES ($1,'genid-shared','U','http://ex.org/p','http://ex.org/o','U')`,
+         VALUES ($1,'http://ex.org/genid-shared','U','http://ex.org/p','http://ex.org/o','U')`,
         [graph.id],
       );
       await dataSource.query(

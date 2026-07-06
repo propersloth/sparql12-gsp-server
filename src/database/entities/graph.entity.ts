@@ -10,6 +10,16 @@ import { Triple } from './triple.entity';
 
 export const DEFAULT_GRAPH_IRI = 'urn:x-arq:DefaultGraph';
 
+function fromDatabaseVersion(value: string): number {
+  const version = Number.parseInt(value, 10);
+
+  if (Number.isNaN(version)) {
+    throw new Error(`Invalid graph version value: ${value}`);
+  }
+
+  return version;
+}
+
 @Entity('graphs')
 export class Graph {
   @PrimaryGeneratedColumn('uuid')
@@ -21,7 +31,7 @@ export class Graph {
   @Column({
     type: 'bigint',
     default: 0,
-    transformer: { to: (v: number) => v, from: (v: string) => Number(v) },
+    transformer: { to: (v: number) => v, from: fromDatabaseVersion },
   })
   version!: number;
 
