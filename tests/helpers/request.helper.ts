@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 
-export async function getGraph(
+export function getGraph(
   app: INestApplication,
   iri: string,
   options: { accept?: string; ifNoneMatch?: string } = {},
@@ -17,7 +17,7 @@ export async function getGraph(
   return req;
 }
 
-export async function putGraph(
+export function putGraph(
   app: INestApplication,
   iri: string,
   body: string,
@@ -35,7 +35,7 @@ export async function putGraph(
   return req;
 }
 
-export async function postGraph(
+export function postGraph(
   app: INestApplication,
   body: string,
   options: { targetIri?: string; contentType?: string } = {},
@@ -50,7 +50,7 @@ export async function postGraph(
     .send(body);
 }
 
-export async function deleteGraph(
+export function deleteGraph(
   app: INestApplication,
   iri: string,
   options: { ifMatch?: string } = {},
@@ -65,7 +65,7 @@ export async function deleteGraph(
   return req;
 }
 
-export async function patchGraph(
+export function patchGraph(
   app: INestApplication,
   iri: string,
   patchBody: string,

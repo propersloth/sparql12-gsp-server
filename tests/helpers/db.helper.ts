@@ -8,7 +8,7 @@ export async function verifyPersistence(
   await dataSource.destroy();
   await dataSource.initialize();
   const afterRestart = await verificationFn(dataSource);
-  return beforeRestart === afterRestart;
+  return beforeRestart && afterRestart;
 }
 
 export async function runConcurrentWrites<T>(
