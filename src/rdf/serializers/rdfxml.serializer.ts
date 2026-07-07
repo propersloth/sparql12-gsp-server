@@ -59,6 +59,7 @@ export function serializeRdfXml(quads: readonly RdfXmlQuad[]): string {
   }
 
   const blankNodeIds = new Map<string, string>();
+  let nextGeneratedBlankNodeId = 1;
   const lines: string[] = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rdf:RDF',
@@ -69,11 +70,24 @@ export function serializeRdfXml(quads: readonly RdfXmlQuad[]): string {
   ];
 
   for (const [, subjectQuads] of groupBySubject(quads)) {
-    lines.push(`  <rdf:Description ${subjectAttribute(subjectQuads[0].subject, blankNodeIds)}>`);
+    lines.push(
+      `  <rdf:Description ${subjectAttribute(
+        subjectQuads[0].subject,
+        blankNodeIds,
+        () => `b${nextGeneratedBlankNodeId++}`,
+      )}>`,
+    );
     for (const quad of subjectQuads) {
       const name = predicateNames.get(quad.predicate.value)!;
       const prefix = namespacePrefixes.get(name.namespace)!;
-      lines.push(`    ${propertyElement(`${prefix}:${name.localName}`, quad.object, blankNodeIds)}`);
+      lines.push(
+        `    ${propertyElement(
+          `${prefix}:${name.localName}`,
+          quad.object,
+          blankNodeIds,
+          () => `b${nextGeneratedBlankNodeId++}`,
+        )}`,
+      );
     }
     lines.push('  </rdf:Description>');
   }
@@ -115,25 +129,30 @@ function termToId(term: RdfXmlTerm): string {
   }
 }
 
-function subjectAttribute(subject: RdfXmlSubject, blankNodeIds: Map<string, string>): string {
+function subjectAttribute(
+  subject: RdfXmlSubject,
+  blankNodeIds: Map<string, string>,
+  nextBlankNodeId: () => string,
+): string {
   if (subject.termType === 'NamedNode') {
     return `rdf:about="${escapeXmlAttribute(subject.value)}"`;
   }
 
-  return `rdf:nodeID="${blankNodeId(subject, blankNodeIds)}"`;
+  return `rdf:nodeID="${blankNodeId(subject, blankNodeIds, nextBlankNodeId)}"`;
 }
 
 function propertyElement(
   qname: string,
   object: RdfXmlObject,
   blankNodeIds: Map<string, string>,
+  nextBlankNodeId: () => string,
 ): string {
   if (object.termType === 'NamedNode') {
     return `<${qname} rdf:resource="${escapeXmlAttribute(object.value)}"/>`;
   }
 
   if (object.termType === 'BlankNode') {
-    return `<${qname} rdf:nodeID="${blankNodeId(object, blankNodeIds)}"/>`;
+    return `<${qname} rdf:nodeID="${blankNodeId(object, blankNodeIds, nextBlankNodeId)}"/>`;
   }
 
   const attributes: string[] = [];
@@ -169,13 +188,17 @@ function splitPredicateIri(iri: string): PredicateName {
   throw new Error(`RDF/XML predicate IRI cannot be represented as an XML QName: ${iri}`);
 }
 
-function blankNodeId(node: RdfXmlBlankNode, blankNodeIds: Map<string, string>): string {
+function blankNodeId(
+  node: RdfXmlBlankNode,
+  blankNodeIds: Map<string, string>,
+  nextBlankNodeId: () => string,
+): string {
   const existing = blankNodeIds.get(node.value);
   if (existing) {
     return existing;
   }
 
-  const generated = isNcName(node.value) ? node.value : `b${blankNodeIds.size + 1}`;
+  const generated = isNcName(node.value) ? node.value : nextBlankNodeId();
   blankNodeIds.set(node.value, generated);
   return generated;
 }

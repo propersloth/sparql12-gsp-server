@@ -4,6 +4,8 @@ export class AddSubjectType1700000000002 implements MigrationInterface {
   name = 'AddSubjectType1700000000002';
 
   public async up(q: QueryRunner): Promise<void> {
+    // PostgreSQL applies the DEFAULT while materializing the new NOT NULL column,
+    // so existing triples are backfilled to 'U' at ALTER TABLE time.
     await q.query(`
       ALTER TABLE triples
         ADD COLUMN subject_type CHAR(1) NOT NULL DEFAULT 'U'
