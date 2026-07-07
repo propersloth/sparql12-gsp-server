@@ -42,13 +42,13 @@ export class GraphStoreService {
         return { content: '', contentType: match.type, etag, status: 304 };
       }
       const validators = ifNoneMatch.split(',');
-      for (const validator of validators) {
-        const strongValidator = validator.trim();
-        if (!strongValidator || strongValidator.startsWith('W/')) {
+      for (const token of validators) {
+        const validator = token.trim();
+        if (!validator || validator.startsWith('W/')) {
           continue;
         }
         try {
-          if (this.etagService.compareStrong(strongValidator, graph.id, graph.version, match.type)) {
+          if (this.etagService.compareStrong(validator, graph.id, graph.version, match.type)) {
             return { content: '', contentType: match.type, etag, status: 304 };
           }
         } catch {

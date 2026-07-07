@@ -101,6 +101,24 @@ describe('GraphStoreService', () => {
     },
   );
 
+  it.each(['application/trig', 'application/n-quads', 'application/ld+json'])(
+    'uses serializeToDataset() for quad format %s with named graph label',
+    async (mediaType) => {
+      const { service, rdfService } = makeService({
+        getBestMatch: jest.fn(() => ({ type: mediaType, quality: 1 })),
+      });
+
+      await service.getGraph('http://ex.org/g', mediaType);
+
+      expect((rdfService as any).triplesToDataset).toHaveBeenCalledWith([], null);
+      expect((rdfService as any).serializeToDataset).toHaveBeenCalledWith(
+        expect.anything(),
+        mediaType,
+        'http://ex.org/g',
+      );
+    },
+  );
+
   it('returns 304 only when compareStrong matches', async () => {
     const { service, tripleRepository } = makeService({
       compareStrong: jest.fn(() => true),
