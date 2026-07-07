@@ -1,35 +1,36 @@
+import type { DatasetCore } from '@rdfjs/types';
+import { canonize } from 'rdf-canonize';
+
 import { RdfService } from '../../src/rdf/rdf.service';
 
+export { RdfService };
+
+/**
+ * Assert two RDF serializations represent isomorphic graphs using RDFC-1.0.
+ * @param ctA  Content-type of string `a`
+ * @param ctB  Content-type of string `b`; defaults to ctA (same format)
+ */
 export async function assertIsomorphic(
-  rdfService: RdfService,
-  actual: string,
-  expected: string,
-  contentType: string,
+  svc: RdfService,
+  a: string,
+  b: string,
+  ctA: string,
+  ctB = ctA,
 ): Promise<void> {
-  const actualDataset = await rdfService.parse(Buffer.from(actual), contentType);
-  const expectedDataset = await rdfService.parse(
-    Buffer.from(expected),
-    contentType,
-  );
+  const da = [...(await svc.parse(Buffer.from(a), ctA))];
+  const db = [...(await svc.parse(Buffer.from(b), ctB))];
+  const ca = await canonize(da, { algorithm: 'RDFC-1.0' });
+  const cb = await canonize(db, { algorithm: 'RDFC-1.0' });
+  expect(ca).toEqual(cb);
+}
 
-  const actualCanonical = await rdfService.serialize(
-    actualDataset,
-    'application/n-triples',
-  );
-  const expectedCanonical = await rdfService.serialize(
-    expectedDataset,
-    'application/n-triples',
-  );
-
-  const normalizeNt = (nt: string) =>
-    nt
-      .trim()
-      .split('\n')
-      .map((line) => line.trim())
-      .sort()
-      .join('\n');
-
-  expect(normalizeNt(actualCanonical)).toEqual(normalizeNt(expectedCanonical));
+export function countDistinctBlankNodes(ds: DatasetCore): number {
+  const ids = new Set<string>();
+  for (const q of ds) {
+    if (q.subject.termType === 'BlankNode') ids.add(q.subject.value);
+    if (q.object.termType === 'BlankNode') ids.add(q.object.value);
+  }
+  return ids.size;
 }
 
 export async function assertBlankNodesDistinct(
@@ -49,3 +50,4 @@ export async function assertBlankNodesDistinct(
 
   expect(mergedTriples).toBeGreaterThanOrEqual(ds1Triples + ds2Triples - 1);
 }
+
