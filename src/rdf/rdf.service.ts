@@ -17,6 +17,7 @@ import {
   RdfXmlObject,
   RdfXmlGraph,
   RdfXmlNamedNode,
+  RdfXmlDefaultGraph,
 } from './serializers/rdfxml.serializer';
 import {
   ParseException,
