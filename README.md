@@ -23,21 +23,21 @@ This project implements a protocol from the W3C's "semantic web" stack — a fam
 
 ### Relevant W3C specifications
 
-| Specification | Purpose | Link |
-| --- | --- | --- |
-| SPARQL 1.2 Graph Store Protocol (W3C Working Draft) | The protocol this server implements | <https://www.w3.org/TR/sparql12-graph-store-protocol/> |
-| RDF 1.2 Concepts and Abstract Data Model (W3C Candidate Recommendation) | The core RDF data model (triples, graphs, datasets) | <https://www.w3.org/TR/rdf12-concepts/> |
-| RDF 1.2 Semantics | Formal semantics and entailment regimes for RDF | <https://www.w3.org/TR/rdf12-semantics/> |
-| RDF 1.2 Turtle | The Turtle serialization syntax | <https://www.w3.org/TR/rdf12-turtle/> |
-| RDF 1.2 N-Triples | The N-Triples serialization syntax | <https://www.w3.org/TR/rdf12-n-triples/> |
-| RDF 1.2 N-Quads | The N-Quads (dataset) serialization syntax | <https://www.w3.org/TR/rdf12-n-quads/> |
-| RDF 1.2 TriG | The TriG (dataset) serialization syntax | <https://www.w3.org/TR/rdf12-trig/> |
-| RDF 1.2 XML Syntax | The RDF/XML serialization syntax | <https://www.w3.org/TR/rdf12-xml/> |
-| JSON-LD 1.1 | The JSON-based RDF serialization syntax | <https://www.w3.org/TR/json-ld11/> |
-| SPARQL 1.2 Query Language (W3C Working Draft) | Query language for RDF | <https://www.w3.org/TR/sparql12-query/> |
-| SPARQL 1.2 Update (W3C Working Draft) | Update language for RDF (basis for this server's `PATCH` support) | <https://www.w3.org/TR/sparql12-update/> |
-| SPARQL 1.2 Protocol (W3C Working Draft) | The full HTTP protocol for SPARQL Query/Update (distinct from GSP) | <https://www.w3.org/TR/sparql12-protocol/> |
-| OWL 2 Web Ontology Language, Document Overview (Second Edition) | Overview of the OWL 2 ontology language family | <https://www.w3.org/TR/owl2-overview/> |
+| Specification                                                           | Purpose                                                            | Link                                                   |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------ |
+| SPARQL 1.2 Graph Store Protocol (W3C Working Draft)                     | The protocol this server implements                                | <https://www.w3.org/TR/sparql12-graph-store-protocol/> |
+| RDF 1.2 Concepts and Abstract Data Model (W3C Candidate Recommendation) | The core RDF data model (triples, graphs, datasets)                | <https://www.w3.org/TR/rdf12-concepts/>                |
+| RDF 1.2 Semantics                                                       | Formal semantics and entailment regimes for RDF                    | <https://www.w3.org/TR/rdf12-semantics/>               |
+| RDF 1.2 Turtle                                                          | The Turtle serialization syntax                                    | <https://www.w3.org/TR/rdf12-turtle/>                  |
+| RDF 1.2 N-Triples                                                       | The N-Triples serialization syntax                                 | <https://www.w3.org/TR/rdf12-n-triples/>               |
+| RDF 1.2 N-Quads                                                         | The N-Quads (dataset) serialization syntax                         | <https://www.w3.org/TR/rdf12-n-quads/>                 |
+| RDF 1.2 TriG                                                            | The TriG (dataset) serialization syntax                            | <https://www.w3.org/TR/rdf12-trig/>                    |
+| RDF 1.2 XML Syntax                                                      | The RDF/XML serialization syntax                                   | <https://www.w3.org/TR/rdf12-xml/>                     |
+| JSON-LD 1.1                                                             | The JSON-based RDF serialization syntax                            | <https://www.w3.org/TR/json-ld11/>                     |
+| SPARQL 1.2 Query Language (W3C Working Draft)                           | Query language for RDF                                             | <https://www.w3.org/TR/sparql12-query/>                |
+| SPARQL 1.2 Update (W3C Working Draft)                                   | Update language for RDF (basis for this server's `PATCH` support)  | <https://www.w3.org/TR/sparql12-update/>               |
+| SPARQL 1.2 Protocol (W3C Working Draft)                                 | The full HTTP protocol for SPARQL Query/Update (distinct from GSP) | <https://www.w3.org/TR/sparql12-protocol/>             |
+| OWL 2 Web Ontology Language, Document Overview (Second Edition)         | Overview of the OWL 2 ontology language family                     | <https://www.w3.org/TR/owl2-overview/>                 |
 
 > [!NOTE]
 > Several of the SPARQL 1.2 and RDF 1.2 documents above are still W3C Working Drafts or Candidate Recommendations, actively evolving under the RDF & SPARQL Working Group. This project tracks the SPARQL 1.2 Graph Store Protocol Working Draft of 19 December 2024 as its conformance baseline (see `SPARQL12-GSP-URD.md`); check the W3C's [technical reports index](https://www.w3.org/TR/) for the latest revisions before relying on any of these as final.
@@ -46,10 +46,6 @@ This project implements a protocol from the W3C's "semantic web" stack — a fam
 
 - [Background: the semantic web ecosystem](#background-the-semantic-web-ecosystem)
 - [Project status](#project-status)
-- [M1 foundation deliverables](#m1-foundation-deliverables)
-- [M2 data layer deliverables](#m2-data-layer-deliverables)
-- [M3 core logic deliverables](#m3-core-logic-deliverables)
-- [M4 HTTP layer deliverables](#m4-http-layer-deliverables)
 - [Current HTTP surface](#current-http-surface)
 - [What is not implemented yet](#what-is-not-implemented-yet)
 - [Quick start (developer)](#quick-start-developer)
@@ -60,80 +56,80 @@ This project implements a protocol from the W3C's "semantic web" stack — a fam
 
 ## Project status
 
-This repository is a functioning SPARQL 1.2 Graph Store Protocol server. It includes:
+This repository is a functioning SPARQL 1.2 Graph Store Protocol server. Milestones M1 (Foundation), M2 (Data Layer), M3 (Core Logic), and M4 (HTTP Layer) are complete, covering:
 
-- NestJS application bootstrap and runtime wiring
-- Environment validation and configuration transformation
-- TypeORM PostgreSQL integration with migrations
-- Graph and triple persistence model
-- RDF parsing and serialization for all six supported media types
-- Graph and triple repositories with transactional writes
-- Concurrency lock and ETag services
-- Content negotiation and IRI routing
-- Full GSP HTTP controller (GET, HEAD, PUT, POST, DELETE, PATCH)
-- SPARQL 1.1 Update–based PATCH with graph-scope enforcement
-- Auth service with JWT and API-key validation
-- Pluggable auth guards (JWT, API-key, optional read bypass)
-- Structured logging interceptor
-- OpenTelemetry-ready tracing interceptor
-- ETag and `Vary: Accept` header injection
-- Standardized GSP exception filter with named error mappings
-- Unit coverage for all protocol operations and HTTP layer components
+- NestJS application bootstrap, configuration, and PostgreSQL persistence (graphs, triples, migrations)
+- RDF parsing and serialization across all six supported media types, with transactional repositories and concurrency/ETag services
+- The full GSP HTTP controller (GET, HEAD, PUT, POST, DELETE, PATCH) with content negotiation, graph routing, and SPARQL 1.1 Update–based PATCH
+- Auth service and pluggable guards (JWT, API key, optional read bypass), structured logging, OTel-ready tracing, ETag/`Vary` header injection, and a standardized exception filter
+- Unit and integration coverage for all of the above
 
-## M1 foundation deliverables
+<details>
+<summary><strong>M1 — Foundation</strong></summary>
 
-| Deliverable | Path | Status |
-| --- | --- | --- |
-| Application bootstrap | `/src/main.ts`, `/src/app.module.ts` | Complete |
-| Environment schema + transforms | `/src/config/*` | Complete |
-| PostgreSQL entities | `/src/database/entities/*` | Complete |
-| Database migrations | `/src/database/migrations/*` | Complete |
-| TypeORM runtime configuration | `/src/database/database.config.ts` | Complete |
-| Health endpoint | `/src/health/health.controller.ts` | Complete |
-| RDF/XML serializer utility | `/src/rdf/serializers/rdfxml.serializer.ts` | Complete |
-| Test fixtures + infrastructure specs | `/tests/*` | Complete |
-| Inception and architecture artifacts | `/aidlc-docs/inception/*` | Complete |
+| Deliverable | Path |
+| --- | --- |
+| Application bootstrap | `/src/main.ts`, `/src/app.module.ts` |
+| Environment schema + transforms | `/src/config/*` |
+| PostgreSQL entities | `/src/database/entities/*` |
+| Database migrations | `/src/database/migrations/*` |
+| TypeORM runtime configuration | `/src/database/database.config.ts` |
+| Health endpoint | `/src/health/health.controller.ts` |
+| RDF/XML serializer utility | `/src/rdf/serializers/rdfxml.serializer.ts` |
+| Test fixtures + infrastructure specs | `/tests/*` |
+| Inception and architecture artifacts | `/aidlc-docs/inception/*` |
 
-## M2 data layer deliverables
+</details>
 
-| Deliverable | Path | Status |
-| --- | --- | --- |
-| RDF service contract + implementation | `/src/rdf/rdf.service.ts` | Complete |
-| RDF exception model | `/src/rdf/rdf.exceptions.ts` | Complete |
-| Graph repository | `/src/graph-store/repositories/graph.repository.ts` | Complete |
-| Triple repository | `/src/graph-store/repositories/triple.repository.ts` | Complete |
-| Concurrency service | `/src/graph-store/services/concurrency.service.ts` | Complete |
-| ETag service + invalid ETag exception | `/src/graph-store/services/etag.service.ts`, `/src/graph-store/exceptions/invalid-etag.exception.ts` | Complete |
-| Data layer unit coverage | `/tests/unit/**/*` | Complete |
+<details>
+<summary><strong>M2 — Data Layer</strong></summary>
 
-## M3 core logic deliverables
+| Deliverable | Path |
+| --- | --- |
+| RDF service contract + implementation | `/src/rdf/rdf.service.ts` |
+| RDF exception model | `/src/rdf/rdf.exceptions.ts` |
+| Graph repository | `/src/graph-store/repositories/graph.repository.ts` |
+| Triple repository | `/src/graph-store/repositories/triple.repository.ts` |
+| Concurrency service | `/src/graph-store/services/concurrency.service.ts` |
+| ETag service + invalid ETag exception | `/src/graph-store/services/etag.service.ts`, `/src/graph-store/exceptions/invalid-etag.exception.ts` |
+| Data layer unit coverage | `/tests/unit/**/*` |
 
-| Deliverable | Path | Status |
-| --- | --- | --- |
-| GSP HTTP controller | `/src/graph-store/graph-store.controller.ts` | Complete |
-| Graph store service | `/src/graph-store/services/graph-store.service.ts` | Complete |
-| Content negotiation service | `/src/graph-store/services/content-negotiation.service.ts` | Complete |
-| Graph routing service | `/src/graph-store/services/graph-routing.service.ts` | Complete |
-| PATCH service (SPARQL 1.1 Update) | `/src/graph-store/services/patch.service.ts` | Complete |
-| PATCH media-type exception filter | `/src/graph-store/filters/patch-media-type.filter.ts` | Complete |
-| PATCH unsupported media-type exception | `/src/graph-store/exceptions/patch-unsupported-media-type.exception.ts` | Complete |
-| Core logic unit coverage | `/tests/unit/**/*`, `/tests/integration/**/*` | Complete |
+</details>
 
-## M4 HTTP layer deliverables
+<details>
+<summary><strong>M3 — Core Logic</strong></summary>
 
-| Deliverable | Path | Status |
-| --- | --- | --- |
-| Auth service (JWT + API-key, in-house HMAC-SHA256) | `/src/auth/auth.service.ts` | Complete |
-| JWT guard | `/src/auth/guards/jwt-auth.guard.ts` | Complete |
-| API-key guard | `/src/auth/guards/api-key.guard.ts` | Complete |
-| Optional auth guard (read bypass) | `/src/auth/guards/optional-auth.guard.ts` | Complete |
-| Structured logging interceptor | `/src/common/interceptors/logging.interceptor.ts` | Complete |
-| OTel-ready tracing interceptor | `/src/common/interceptors/tracing.interceptor.ts` | Complete |
-| ETag + `Vary: Accept` interceptor | `/src/common/interceptors/etag.interceptor.ts` | Complete |
-| GSP exception filter (named error-to-status map) | `/src/common/filters/gsp-exception.filter.ts` | Complete |
-| Method-not-allowed filter | `/src/common/filters/method-not-allowed.filter.ts` | Complete |
-| M4 unit coverage | `/tests/unit/auth/auth.spec.ts`, `/tests/unit/common/*`, `/tests/unit/interceptors.spec.ts` | Complete |
-| M4 integration coverage | `/tests/integration/controllers.spec.ts`, `/tests/integration/headers.spec.ts` | Complete |
+| Deliverable | Path |
+| --- | --- |
+| GSP HTTP controller | `/src/graph-store/graph-store.controller.ts` |
+| Graph store service | `/src/graph-store/services/graph-store.service.ts` |
+| Content negotiation service | `/src/graph-store/services/content-negotiation.service.ts` |
+| Graph routing service | `/src/graph-store/services/graph-routing.service.ts` |
+| PATCH service (SPARQL 1.1 Update) | `/src/graph-store/services/patch.service.ts` |
+| PATCH media-type exception filter | `/src/graph-store/filters/patch-media-type.filter.ts` |
+| PATCH unsupported media-type exception | `/src/graph-store/exceptions/patch-unsupported-media-type.exception.ts` |
+| Core logic unit coverage | `/tests/unit/**/*`, `/tests/integration/**/*` |
+
+</details>
+
+<details>
+<summary><strong>M4 — HTTP Layer</strong></summary>
+
+| Deliverable | Path |
+| --- | --- |
+| Auth service (JWT + API-key, in-house HMAC-SHA256) | `/src/auth/auth.service.ts` |
+| JWT guard | `/src/auth/guards/jwt-auth.guard.ts` |
+| API-key guard | `/src/auth/guards/api-key.guard.ts` |
+| Optional auth guard (read bypass) | `/src/auth/guards/optional-auth.guard.ts` |
+| Structured logging interceptor | `/src/common/interceptors/logging.interceptor.ts` |
+| OTel-ready tracing interceptor | `/src/common/interceptors/tracing.interceptor.ts` |
+| ETag + `Vary: Accept` interceptor | `/src/common/interceptors/etag.interceptor.ts` |
+| GSP exception filter (named error-to-status map) | `/src/common/filters/gsp-exception.filter.ts` |
+| Method-not-allowed filter | `/src/common/filters/method-not-allowed.filter.ts` |
+| M4 unit coverage | `/tests/unit/auth/auth.spec.ts`, `/tests/unit/common/*`, `/tests/unit/interceptors.spec.ts` |
+| M4 integration coverage | `/tests/integration/controllers.spec.ts`, `/tests/integration/headers.spec.ts` |
+
+</details>
 
 ## Current HTTP surface
 
@@ -141,20 +137,20 @@ This repository is a functioning SPARQL 1.2 Graph Store Protocol server. It incl
 
 Each method is available on both a **direct** path (`/graph/:iri`) and an **indirect** path (`/graph-store` with a `?graph=<iri>` or `?default` query parameter).
 
-| Method | Direct path | Indirect path | Semantics |
-| --- | --- | --- | --- |
-| `GET` | `/graph/:iri` | `/graph-store?graph=<iri>` | Retrieve a named graph |
-| `GET` | — | `/graph-store?default` | Retrieve the default graph |
-| `HEAD` | `/graph/:iri` | `/graph-store?graph=<iri>` | Retrieve metadata for a named graph |
-| `HEAD` | — | `/graph-store?default` | Retrieve metadata for the default graph |
-| `PUT` | `/graph/:iri` | `/graph-store?graph=<iri>` | Replace a named graph |
-| `PUT` | — | `/graph-store?default` | Replace the default graph |
-| `POST` | `/graph/:iri` | `/graph-store?graph=<iri>` | Merge triples into a named graph |
-| `POST` | — | `/graph-store` | Create a new graph with a minted IRI |
-| `DELETE` | `/graph/:iri` | `/graph-store?graph=<iri>` | Delete a named graph |
-| `DELETE` | — | `/graph-store?default` | Clear the default graph |
-| `PATCH` | `/graph/:iri` | `/graph-store?graph=<iri>` | Apply a SPARQL 1.1 Update to a named graph |
-| `PATCH` | — | `/graph-store?default` | Apply a SPARQL 1.1 Update to the default graph |
+| Method   | Direct path   | Indirect path              | Semantics                                      |
+| -------- | ------------- | -------------------------- | ---------------------------------------------- |
+| `GET`    | `/graph/:iri` | `/graph-store?graph=<iri>` | Retrieve a named graph                         |
+| `GET`    | —             | `/graph-store?default`     | Retrieve the default graph                     |
+| `HEAD`   | `/graph/:iri` | `/graph-store?graph=<iri>` | Retrieve metadata for a named graph            |
+| `HEAD`   | —             | `/graph-store?default`     | Retrieve metadata for the default graph        |
+| `PUT`    | `/graph/:iri` | `/graph-store?graph=<iri>` | Replace a named graph                          |
+| `PUT`    | —             | `/graph-store?default`     | Replace the default graph                      |
+| `POST`   | `/graph/:iri` | `/graph-store?graph=<iri>` | Merge triples into a named graph               |
+| `POST`   | —             | `/graph-store`             | Create a new graph with a minted IRI           |
+| `DELETE` | `/graph/:iri` | `/graph-store?graph=<iri>` | Delete a named graph                           |
+| `DELETE` | —             | `/graph-store?default`     | Clear the default graph                        |
+| `PATCH`  | `/graph/:iri` | `/graph-store?graph=<iri>` | Apply a SPARQL 1.1 Update to a named graph     |
+| `PATCH`  | —             | `/graph-store?default`     | Apply a SPARQL 1.1 Update to the default graph |
 
 ### Other endpoints
 
@@ -263,7 +259,7 @@ Current automated coverage includes:
 > ```
 
 <details>
-  <summary>Fixture/media coverage currently present in <code>/tests/fixtures</code></summary>
+<summary>Fixture/media coverage currently present in <code>/tests/fixtures</code></summary>
 
 - Turtle (`.ttl`)
 - RDF/XML (`.rdf`)
@@ -315,6 +311,5 @@ aidlc-docs/
   inception/
 ```
 
-## License
-
+---
 This project is licensed under the [MIT License](./LICENSE).
