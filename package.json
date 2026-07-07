@@ -1,7 +1,8 @@
 {
   "name": "sparql12-gsp-server",
   "version": "0.1.0",
-  "private": true,
+  "license": "MIT",
+  "private": false,
   "description": "SPARQL 1.2 Graph Store Protocol Server",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
