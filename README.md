@@ -5,8 +5,46 @@ NestJS + TypeScript implementation of a SPARQL 1.2 Graph Store Protocol server.
 > [!IMPORTANT]
 > Milestones M1 Foundation, M2 Data Layer, M3 Core Logic, and M4 HTTP Layer are complete. The server now handles the full set of Graph Store Protocol HTTP methods (GET, HEAD, PUT, POST, DELETE, PATCH) across both direct and indirect graph addressing modes, with structured logging, ETag/Vary header injection, a standardized exception filter, and pluggable auth guards.
 
+## Background: the semantic web ecosystem
+
+This project implements a protocol from the W3C's "semantic web" stack — a family of standards for representing and querying data as graphs rather than tables or documents. If you're coming to this repository without that background, here's the minimum you need to make sense of the code and the terminology used throughout the other docs in this repo.
+
+- **RDF (Resource Description Framework)** is the underlying data model. Instead of rows and columns, data is expressed as `subject–predicate–object` **triples** — e.g. `<Alice> <knows> <Bob>`. Subjects and predicates are IRIs (globally unique identifiers, a generalization of URIs); objects can be an IRI, a blank node, or a literal value. A set of triples is an RDF **graph**. A server can host many graphs at once — a **default graph** plus zero or more **named graphs**, each identified by its own IRI — and that collection is called an RDF **dataset** or **Graph Store**. This project's Graph Store is exactly that: a managed collection of named graphs plus a default graph, persisted in PostgreSQL.
+
+- **RDF serialization formats** are the concrete syntaxes used to write RDF triples/datasets to a file or HTTP body. Turtle and N-Triples are compact, human-readable triple formats; RDF/XML is the original XML-based format; JSON-LD expresses RDF using ordinary JSON; TriG and N-Quads extend Turtle and N-Triples respectively to cover multi-graph datasets (they add a fourth "graph name" term to each triple). This server parses, merges, and serializes across all six of these — the "mandatory trio" of RDF/XML, Turtle, and N-Triples, plus JSON-LD, TriG, and N-Quads — and negotiates between them using standard HTTP `Accept` / `Content-Type` headers.
+
+- **SPARQL** is the query and update language for RDF, playing a role analogous to SQL for relational databases. **SPARQL Query** retrieves data by matching triple patterns against a dataset; **SPARQL Update** adds an imperative layer (`INSERT DATA`, `DELETE DATA`, `INSERT`/`DELETE`/`WHERE`, and graph management operations) for modifying a Graph Store. This project implements a *subset* of SPARQL Update internally to support its `PATCH` method, but it does not expose the full SPARQL Query/Update HTTP endpoints — see below.
+
+- **The Graph Store Protocol (GSP)** is the specification this server actually implements. Where full SPARQL Query/Update requires clients to send SPARQL syntax over a dedicated protocol endpoint, GSP exposes graph-level CRUD as plain HTTP verbs — `GET`/`HEAD` to read a graph, `PUT` to replace it, `POST` to merge triples into it or mint a new one, `DELETE` to remove it, and (optionally) `PATCH` to apply an incremental SPARQL Update. It's deliberately the "REST-shaped" on-ramp into an RDF store: simpler to implement and consume than the full SPARQL protocol, at the cost of not supporting arbitrary queries.
+
+- **OWL (Web Ontology Language)** sits a layer above RDF and is mentioned here for completeness, since it's part of the same standards family. OWL adds vocabulary for defining classes, properties, and logical constraints over RDF data, enabling reasoning and inference (e.g. "if X is a `Parent` and a `Doctor`, infer X is a `WorkingParent`"). This server does not perform OWL reasoning or entailment — it stores and serves triples as given, treating ontology semantics as the client's concern.
+
+**Where this project fits:** it is the storage and transport layer of the semantic web stack — the part responsible for durably persisting RDF graphs and letting clients get them in and out over HTTP with correct concurrency, content negotiation, and status-code semantics — without taking a position on query complexity (that's SPARQL Query/Update's job) or on inference (that's OWL's job). It exists because a static-file server can move opaque bytes but can't satisfy the RDF-semantic obligations of the spec — chiefly the `POST` = *RDF merge* operation, parse-and-validate behavior, and serialization-level content negotiation. Meeting those obligations requires an RDF-aware application server that hosts a parser, serializer, and store in-process, which is what this repository builds.
+
+### Relevant W3C specifications
+
+| Specification | Purpose | Link |
+| --- | --- | --- |
+| SPARQL 1.2 Graph Store Protocol (W3C Working Draft) | The protocol this server implements | <https://www.w3.org/TR/sparql12-graph-store-protocol/> |
+| RDF 1.2 Concepts and Abstract Data Model (W3C Candidate Recommendation) | The core RDF data model (triples, graphs, datasets) | <https://www.w3.org/TR/rdf12-concepts/> |
+| RDF 1.2 Semantics | Formal semantics and entailment regimes for RDF | <https://www.w3.org/TR/rdf12-semantics/> |
+| RDF 1.2 Turtle | The Turtle serialization syntax | <https://www.w3.org/TR/rdf12-turtle/> |
+| RDF 1.2 N-Triples | The N-Triples serialization syntax | <https://www.w3.org/TR/rdf12-n-triples/> |
+| RDF 1.2 N-Quads | The N-Quads (dataset) serialization syntax | <https://www.w3.org/TR/rdf12-n-quads/> |
+| RDF 1.2 TriG | The TriG (dataset) serialization syntax | <https://www.w3.org/TR/rdf12-trig/> |
+| RDF 1.2 XML Syntax | The RDF/XML serialization syntax | <https://www.w3.org/TR/rdf12-xml/> |
+| JSON-LD 1.1 | The JSON-based RDF serialization syntax | <https://www.w3.org/TR/json-ld11/> |
+| SPARQL 1.2 Query Language (W3C Working Draft) | Query language for RDF | <https://www.w3.org/TR/sparql12-query/> |
+| SPARQL 1.2 Update (W3C Working Draft) | Update language for RDF (basis for this server's `PATCH` support) | <https://www.w3.org/TR/sparql12-update/> |
+| SPARQL 1.2 Protocol (W3C Working Draft) | The full HTTP protocol for SPARQL Query/Update (distinct from GSP) | <https://www.w3.org/TR/sparql12-protocol/> |
+| OWL 2 Web Ontology Language, Document Overview (Second Edition) | Overview of the OWL 2 ontology language family | <https://www.w3.org/TR/owl2-overview/> |
+
+> [!NOTE]
+> Several of the SPARQL 1.2 and RDF 1.2 documents above are still W3C Working Drafts or Candidate Recommendations, actively evolving under the RDF & SPARQL Working Group. This project tracks the SPARQL 1.2 Graph Store Protocol Working Draft of 19 December 2024 as its conformance baseline (see `SPARQL12-GSP-URD.md`); check the W3C's [technical reports index](https://www.w3.org/TR/) for the latest revisions before relying on any of these as final.
+
 ## Table of contents
 
+- [Background: the semantic web ecosystem](#background-the-semantic-web-ecosystem)
 - [Project status](#project-status)
 - [M1 foundation deliverables](#m1-foundation-deliverables)
 - [M2 data layer deliverables](#m2-data-layer-deliverables)
