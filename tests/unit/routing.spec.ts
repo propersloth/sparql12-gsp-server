@@ -49,6 +49,7 @@ describe('GraphRoutingService', () => {
 
       expect(target.iri).toBeNull();
       expect(target.isDefault).toBe(true);
+      expect(target.isIndirect).toBe(true);
     });
   });
 
@@ -91,6 +92,7 @@ describe('GraphRoutingService', () => {
 
       expect(target.isDefault).toBe(true);
       expect(target.iri).toBeNull();
+      expect(target.isIndirect).toBe(true);
     });
 
     it('should prefer ?default over ?graph', () => {
@@ -103,6 +105,7 @@ describe('GraphRoutingService', () => {
       const target = service.resolveTarget(req);
 
       expect(target.isDefault).toBe(true);
+      expect(target.isIndirect).toBe(true);
     });
   });
 

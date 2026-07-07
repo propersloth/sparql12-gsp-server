@@ -40,7 +40,7 @@ export class GraphRoutingService {
       return {
         iri: null,
         isDefault: true,
-        isIndirect: false,
+        isIndirect: true,
       };
     }
 
