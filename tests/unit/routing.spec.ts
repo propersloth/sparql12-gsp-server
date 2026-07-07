@@ -54,7 +54,7 @@ describe('GraphRoutingService', () => {
   });
 
   describe('TC-ID-02: Percent-encoded IRI in path', () => {
-    it('should decode percent-encoded IRI in path', () => {
+    it('should preserve the raw path segment alongside the decoded param IRI', () => {
       const req = {
         path: '/graph/http%3A%2F%2Fexample.org%2Fmy%20graph',
         query: {},
@@ -110,7 +110,7 @@ describe('GraphRoutingService', () => {
   });
 
   describe('TC-ID-04: Default graph indirect-only', () => {
-    it('should reject /graph/ with null-like path', () => {
+    it('should not treat /graph/null as the default graph', () => {
       const req = {
         path: '/graph/null',
         query: {},

@@ -31,11 +31,12 @@ export class GraphRoutingService {
   }): GraphTarget {
     const directIri = this.firstString(request.params?.iri);
     if (directIri) {
+      const rawIri = this.extractRawIri(request.path);
       return {
         iri: directIri,
         isDefault: false,
         isIndirect: false,
-        rawIri: this.extractRawIri(request.path, directIri),
+        ...(rawIri !== undefined ? { rawIri } : {}),
       };
     }
 
@@ -101,11 +102,11 @@ export class GraphRoutingService {
     return null;
   }
 
-  private extractRawIri(path: string | undefined, fallback: string): string {
+  private extractRawIri(path: string | undefined): string | undefined {
     const prefix = '/graph/';
     if (path?.startsWith(prefix)) {
       return path.slice(prefix.length);
     }
-    return fallback;
+    return undefined;
   }
 }
