@@ -1,37 +1,119 @@
-# Service Definitions
+# Component Definitions
 
-#normative #inception #design 
-
+#normative #inception #reference 
 ## SPARQL 1.2 Graph Store Protocol Server
 
 | Field | Value |
 |-------|-------|
-| **Document type** | AIDLC Application Design — Service Definitions |
+| **Document type** | AIDLC Application Design — Component Definitions |
 | **Status** | Amended |
 | **Technology Stack** | NestJS + TypeScript + PostgreSQL |
 
-> **Amendment log.** Three corrections: (D-03) `patchGraph` behavior order corrected — existence checked before `If-Match`; (D-05) `ConcurrencyService.withAdvisoryLock` replaced by `lock(manager, iri)` taking a transaction `EntityManager`; (D-06) `ETagService.compare` replaced by `compareStrong` / `compareState`. Behavior sections for `putGraph` and `deleteGraph` updated to use the transaction lock pattern. New `RdfService` methods added (`triplesToDataset`, `mergeNormalized`, `applyPatch`). `PatchService` documented as thin DI wrapper.
+> **Amendment log.** Updated to match patched issues: (D-01) `Graph.iri` is `string` (not `string | null`), default graph uses sentinel IRI; (D-05) `ConcurrencyService` API changed from `withAdvisoryLock(graphId, fn)` to `lock(manager, iri)`; (D-06) `ETagService.compare` split into `compareStrong` + `compareState`; RdfService expanded with `triplesToDataset`, `mergeNormalized`, `applyPatch`; `PatchService` clarified as a thin DI wrapper; `GraphRepository.incrementVersionInTxn` added.
 
 ---
 
-## 1. GraphStoreService
+## 1. Controllers
+
+### 1.1 GraphStoreController
+
+**File:** `src/graph-store/graph-store.controller.ts`
+
+**Responsibility:** HTTP endpoint routing for all GSP methods. Parses requests, delegates to services, formats responses with appropriate headers and status codes. Includes catch-all `@All` handler that returns 405 + `Allow` for unsupported verbs (UR-HTTP-03).
+
+**Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/graph/:iri` | Direct graph retrieval |
+| GET | `/graph-store?graph=<iri>` | Indirect named graph retrieval |
+| GET | `/graph-store?default` | Default graph retrieval |
+| HEAD | `/graph/:iri` | HEAD for direct graph |
+| HEAD | `/graph-store?graph=<iri>` | HEAD for indirect graph |
+| PUT | `/graph/:iri` | Replace direct graph |
+| PUT | `/graph-store?graph=<iri>` | Replace indirect graph |
+| POST | `/graph/:iri` | Merge into existing direct graph |
+| POST | `/graph-store` | POST to store (mint new graph) |
+| DELETE | `/graph/:iri` | Delete direct graph |
+| DELETE | `/graph-store?graph=<iri>` | Delete indirect graph |
+| PATCH | `/graph/:iri` | Incremental update (direct) |
+| PATCH | `/graph-store?graph=<iri>` | Incremental update (indirect) |
+| OPTIONS | `/*` | Capability discovery |
+| ALL (fallback) | `/graph/:iri` | 405 + Allow for unregistered verbs |
+| ALL (fallback) | `/graph-store` | 405 + Allow for unregistered verbs |
+
+**Dependencies:**
+- `GraphStoreService`
+- `GraphRoutingService`
+- `ContentNegotiationService`
+
+**Input Types:**
+
+```typescript
+interface GraphStoreQueryDto {
+  graph?: string;  // Percent-encoded IRI
+  default?: boolean;
+}
+
+interface GraphStoreBodyDto {
+  data: string;  // RDF payload
+  contentType: string;
+}
+```
+
+**Output Types:**
+
+```typescript
+interface GraphStoreResponseDto {
+  status: number;
+  headers: Record<string, string>;
+  body?: string | Stream;
+}
+
+interface ErrorResponseDto {
+  status: number;
+  error: string;
+  message: string;
+}
+```
+
+---
+
+### 1.2 CapabilityController
+
+**File:** `src/graph-store/capability.controller.ts`
+
+**Responsibility:** OPTIONS response handling for capability discovery.
+
+**Response Headers:**
+
+```
+Allow: GET, HEAD, PUT, POST, DELETE, PATCH, OPTIONS
+Accept-Patch: application/sparql-update   (only when GSP_PATCH_ENABLED=true)
+```
+
+---
+
+## 2. Services
+
+### 2.1 GraphStoreService
 
 **File:** `src/graph-store/services/graph-store.service.ts`
 
-**Purpose:** Core business logic for all GSP operations. All mutations run inside a `dataSource.transaction()` that holds the advisory lock and performs the version increment atomically.
+**Responsibility:** Core business logic for graph operations. All mutations run inside a `dataSource.transaction()` that holds the advisory lock and increments the version.
 
-### 1.1 Method: `getGraph`
+**Public Methods:**
 
-```typescript
-async getGraph(
-  iri: string,
-  accept: string | undefined,
-  ifNoneMatch?: string
-): Promise<GraphResult>
-```
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `getGraph` | `iri: string, accept: string, ifNoneMatch?: string` | `Promise<GraphResult>` | Retrieve graph with content negotiation and 304 support |
+| `headGraph` | `iri: string, accept?: string` | `Promise<GraphMetadata>` | HEAD — throws NotFoundException if absent |
+| `putGraph` | `iri: string, data: Buffer, contentType: string, pre?: Preconditions` | `Promise<PutResult>` | Replace graph |
+| `postGraph` | `body: Buffer, contentType: string, targetIri?: string, parts?: MultipartPart[]` | `Promise<PostResult>` | Merge into graph or mint |
+| `deleteGraph` | `iri: string, pre?: Preconditions` | `Promise<DeleteResult>` | Delete graph |
+| `patchGraph` | `iri: string, body: string, contentType: string, ifMatch?: string` | `Promise<PatchResult>` | Incremental update |
 
-**Returns:** `GraphResult`
-
+**Type Definitions:**
 ```typescript
 interface GraphResult {
   status: 200 | 304;
@@ -40,74 +122,16 @@ interface GraphResult {
   etag: string;
   vary: 'Accept';
 }
-```
 
-**Errors:**
-- `GraphNotFoundException` → 404 (named graphs with 0 triples; empty named graphs do not exist)
-- `NotAcceptableException` → 406
-
-**Behavior:**
-1. `GraphRepository.findByIri()` (or `findDefault()` for `?default`)
-2. If not found and named graph → 404
-3. If not found and default graph → 200 with empty body
-4. Negotiate best format via `ContentNegotiationService`
-5. Generate ETag via `ETagService.generate(graph.id, graph.version, mediaType)`
-6. If `If-None-Match` present: call `ETagService.compareStrong(ifNoneMatch, graph.id, graph.version, mediaType)` → 304 if match (full ETag including format — Amendment D-06)
-7. Load triples: `TripleRepository.findByGraphId()`
-8. Reconstruct dataset: `RdfService.triplesToDataset(triples, graph.iri)`
-9. Serialize: `RdfService.serialize(dataset, mediaType)` for triple formats; `RdfService.serializeToDataset(dataset, mediaType, graph.iri)` for quad formats (TriG/N-Quads/JSON-LD)
-10. Return 200 with `ETag` and `Vary: Accept`
-
----
-
-### 1.2 Method: `headGraph`
-
-```typescript
-async headGraph(
-  iri: string,
-  accept?: string
-): Promise<GraphMetadata>
-```
-
-**Returns:** `GraphMetadata`
-
-```typescript
 interface GraphMetadata {
   etag: string;
   contentType: string;
-  // Does NOT return { exists: false } — throws NotFoundException on absent graph
+  // Note: throws NotFoundException on absent graph (does NOT return { exists: false })
 }
-```
 
-**Errors:**
-- `GraphNotFoundException` → 404 (throws, does not return sentinel)
-
-**Behavior:**
-1. `GraphRepository.findByIri()`
-2. If not found → throw `GraphNotFoundException` (404)
-3. Negotiate format
-4. Generate ETag via `ETagService.generate(graph.id, graph.version, mediaType)`
-5. Return headers only (no body)
-
----
-
-### 1.3 Method: `putGraph`
-
-```typescript
-async putGraph(
-  iri: string,
-  data: Buffer,
-  contentType: string,
-  pre?: Preconditions
-): Promise<PutResult>
-```
-
-**Returns:** `PutResult`
-
-```typescript
 interface Preconditions {
   ifMatch?: string;
-  ifNoneMatch?: string;  // '*' enables create-only PUT
+  ifNoneMatch?: string;
 }
 
 interface PutResult {
@@ -115,223 +139,53 @@ interface PutResult {
   etag?: string;
   location?: string;
 }
-```
 
-**Errors:**
-- `ParseException` → 400
-- `InvalidIriException` → 400
-- `DatasetMismatchException` → 400
-- `UnsupportedMediaTypeException` → 415
-- `PreconditionFailedException` → 412
-
-**Behavior:**
-1. Validate content type
-2. Parse + reconcile payload: `RdfService.parseWithReconciliation(data, contentType, iri)` → `NormalizedTriple[]`
-3. Inside `dataSource.transaction()`:
-   a. `ConcurrencyService.lock(manager, iri)`
-   b. `GraphRepository.findByIriInTxn(manager, iri)`
-   c. If `pre.ifNoneMatch === '*'` and graph exists → 412
-   d. If `pre.ifMatch` present → `ETagService.compareState(ifMatch, graph.id, graph.version)` → 412 if no match
-   e. If parsed result is empty → delete any existing triples, return 204 (graph becomes absent)
-   f. If graph doesn't exist → `GraphRepository.createInTxn(manager, iri)` (→ 201 on return)
-   g. `TripleRepository.deleteByGraphIdInTxn(manager, graphId)`
-   h. `TripleRepository.insertInTxn(manager, graphId, triples)` (`ON CONFLICT DO NOTHING`)
-   i. `GraphRepository.incrementVersionInTxn(manager, graphId)` → new version
-4. Return 201 (new) or 200/204 (existing)
-
----
-
-### 1.4 Method: `postGraph`
-
-```typescript
-async postGraph(
-  body: Buffer,
-  contentType: string,
-  targetIri?: string,
-  parts?: MultipartPart[]
-): Promise<PostResult>
-```
-
-**Returns:** `PostResult`
-
-```typescript
 interface PostResult {
   status: 201 | 200 | 204;
   etag?: string;
   location?: string;
 }
-```
 
-**Errors:**
-- `ParseException` → 400
-- `DatasetMismatchException` → 400
-- `BadRequestException` → 400 (non-absolute `targetIri`)
-- `GraphNotFoundException` → 404 (POST to absent named-graph IRI never creates; use PUT to name or POST-to-store to mint)
-- `UnsupportedMediaTypeException` → 415
-
-**Behavior — targeted POST (existing graph):**
-1. Validate content type
-2. Parse + reconcile: `RdfService.parseWithReconciliation(body, contentType, targetIri)`
-3. Validate `targetIri` is absolute → 400 if not
-4. Inside `dataSource.transaction()`:
-   a. `ConcurrencyService.lock(manager, targetIri)`
-   b. Graph MUST exist → 404 if absent (POST never creates at a caller-chosen IRI)
-   c. Load existing: `TripleRepository.findByGraphId(graphId)`
-   d. Merge: `RdfService.mergeNormalized(existing, incoming)`
-   e. `TripleRepository.deleteByGraphIdInTxn(manager, graphId)`
-   f. `TripleRepository.insertInTxn(manager, graphId, merged)`
-   g. `GraphRepository.incrementVersionInTxn(manager, graphId)`
-5. Return 200/204 with new ETag
-
-**Behavior — POST to store (mint):**
-1. Parse + reconcile
-2. Mint IRI: `{GSP_BASE_URL}/graphs/{uuid}`
-3. Inside transaction: create graph row, insert triples, increment version
-4. Return 201 + `Location: {mintedIri}`
-
-**Behavior — multipart:**
-- Parse each part by its declared type (or infer from extension)
-- Union all parts via `mergeNormalized` before the single write
-
----
-
-### 1.5 Method: `deleteGraph`
-
-```typescript
-async deleteGraph(
-  iri: string,
-  pre?: Preconditions
-): Promise<DeleteResult>
-```
-
-**Returns:** `DeleteResult`
-
-```typescript
 interface DeleteResult {
   status: 200 | 202 | 204;
 }
-```
 
-**Errors:**
-- `GraphNotFoundException` → 404
-- `PreconditionFailedException` → 412
-- `ForbiddenException` → 403
-
-**Behavior:**
-1. Inside `dataSource.transaction()`:
-   a. `ConcurrencyService.lock(manager, iri)`
-   b. Graph MUST exist → 404 if absent
-   c. If `pre.ifMatch` present → `ETagService.compareState(ifMatch, graph.id, graph.version)` → 412 if no match
-   d. `TripleRepository.deleteByGraphIdInTxn(manager, graphId)`
-   e. `GraphRepository.deleteInTxn(manager, graphId)` (if not default graph)
-2. Return 200/202/204
-
----
-
-### 1.6 Method: `patchGraph`
-
-```typescript
-async patchGraph(
-  iri: string,
-  body: string,
-  contentType: string,
-  ifMatch?: string
-): Promise<PatchResult>
-```
-
-**Returns:** `PatchResult`
-
-```typescript
 interface PatchResult {
   status: 200 | 204;
   etag: string;
 }
 ```
 
-**Errors:**
-- `GraphNotFoundException` → 404 (**checked first — Amendment D-03**)
-- `PreconditionRequiredException` → 428
-- `PatchUnsupportedMediaTypeException` → 415 (with `Accept-Patch` header)
-- `PreconditionFailedException` → 412
-- `ParseException` → 400
-- `UnprocessableEntityException` → 422 (multi-graph scope or unsupported WHERE pattern)
-- `ConflictException` → 409
-
-**Behavior (Amendment D-03 — corrected order):**
-1. **Existence check FIRST:** `GraphRepository.findByIri(iri)` → 404 if absent (OQ-14: 404 precedes 428)
-2. **`If-Match` present check:** → 428 if absent (PATCH requires precondition per UR-CC-04)
-3. **Content-Type check:** must be `application/sparql-update` → 415 + `Accept-Patch` if not
-4. **SPARQL parse:** `PatchService.parse(body)` → 400 if invalid syntax
-5. **Scope check:** `PatchService.scopeToGraph(operations, iri)` → 422 if multi-graph
-6. Inside `dataSource.transaction()`:
-   a. `ConcurrencyService.lock(manager, iri)`
-   b. Re-read graph inside lock
-   c. `ETagService.compareState(ifMatch, graph.id, graph.version)` → 412 if stale
-   d. Load existing: `TripleRepository.findByGraphId(graphId)`
-   e. Apply: `PatchService.apply(existing, parsed, iri)` (delegates to `RdfService.applyPatch`)
-   f. `TripleRepository.deleteByGraphIdInTxn(manager, graphId)`
-   g. `TripleRepository.insertInTxn(manager, graphId, updated)`
-   h. `GraphRepository.incrementVersionInTxn(manager, graphId)`
-7. Return 200/204 with new ETag
+**Dependencies:** `GraphRepository`, `TripleRepository`, `ConcurrencyService`, `RdfService`, `PatchService`, `ETagService`, `DataSource`
 
 ---
 
-## 2. GraphRoutingService
+### 2.2 GraphRoutingService
 
-**File:** `src/graph-store/services/graph-routing.service.ts`
+**File:** `src/graph-store/services/graph-routing.service.ts`
 
-**Purpose:** Parse HTTP requests to determine target graph via direct or indirect identification.
+**Responsibility:** Parse request URIs to determine target graph (direct vs indirect identification).
 
-### 2.1 Method: `resolveTarget`
+**Public Methods:**
 
-```typescript
-resolveTarget(request: Request): GraphTarget
-```
+| Method           | Parameters            | Returns            | Description                    |
+| ---------------- | --------------------- | ------------------ | ------------------------------ |
+| `resolveTarget`  | `request: Request`    | `GraphTarget`      | Resolve graph IRI from request |
+| `isDefaultGraph` | `target: GraphTarget` | `boolean`          | Check if target is default     |
+| `validateIri`    | `iri: string`         | `ValidationResult` | Validate IRI format            |
 
-|Parameter|Type|Description|
-|---|---|---|
-|`request`|`Request`|Express/NestJS request object|
+**Type Definitions:**
 
-**Returns:** `GraphTarget`
+typescript
 
 ```typescript
 interface GraphTarget {
-  iri: string | null;
+  iri: string | null;  // null = default graph
   isDefault: boolean;
   isIndirect: boolean;
-  rawIri?: string;
+  rawIri?: string;  // Original percent-encoded if indirect
 }
-```
 
-**Routing Rules:**
-
-| Pattern                         | Result                         |
-| ------------------------------- | ------------------------------ |
-| Path `/graph/{iri+}`            | Direct: `iri`= decoded path    |
-| Query `?graph={iri}`            | Indirect: `iri`= decoded param |
-| Query `?default`                | Default graph: `iri = null`    |
-| Path `/graph-store` + no params | Store URL (for POST-to-store)  |
-
-**Validation:**
-
-- Non-absolute IRI → throw `InvalidIriException`
-- Unhostable IRI → handled by caller (404/403)
-
----
-
-### 2.2 Method: `validateIri`
-
-```typescript
-validateIri(iri: string): ValidationResult
-```
-
-|Parameter|Type|Description|
-|---|---|---|
-|`iri`|`string`|IRI to validate|
-
-**Returns:** `ValidationResult`
-
-```typescript
 interface ValidationResult {
   valid: boolean;
   error?: string;
@@ -339,522 +193,513 @@ interface ValidationResult {
 }
 ```
 
-**Validation Checks:**
+**Rules:**
 
-1.Non-empty
-
-2.Absolute IRI (starts with scheme)
-
-3.Valid percent-encoding (decode and re-encode)
-
-4.No invalid characters per RFC 3987
+- Direct: `/graph/{iri}` path → `iri`is the graph IRI
+- Indirect: `?graph={percent-encoded-iri}` → decode and use
+- Indirect default: `?default` → null IRI, default graph
+- Non-absolute IRI → 400 Bad Request
 
 ---
 
-## 3. ContentNegotiationService
+### 2.3 ContentNegotiationService
 
-**:** `src/graph-store/services/content-negotiation.service.ts`
+**File:** `src/graph-store/services/content-negotiation.service.ts`
 
-**Purpose:** Handle Accept and Content-Type headers for format negotiation.
+**Responsibility:** Handle Accept and Content-Type headers for RDF format negotiation.
 
-### 3.1 Method: `parseAccept`
+**Public Methods:**
 
-```typescript
-parseAccept(accept: string | undefined): MediaType[]
-```
+|Method|Parameters|Returns|Description|
+|---|---|---|---|
+|`parseAccept`|`accept: string \| undefined`|`MediaType[]`|Parse Accept header|
+|`getBestMatch`|`accept: MediaType[], supported: MediaType[]`|`MediaType \| null`|Find best format|
+|`getDefaultFormat`|—|`MediaType`|Return trio fallback|
+|`validateContentType`|`contentType: string`|`ValidationResult`|Validate RDF format|
 
-|Parameter|Type|Description|
-|---|---|---|
-|`accept`|`string \| undefined`|Accept header value|
-
-**Returns:** `MediaType[]` sorted by quality descending
-
-**Example:**
-
-```
-Accept: text/turtle; q=0.9, application/ld+json; q=0.8
-→ [turtle, json-ld]
-```
-
----
-
-### 3.2 Method: `getBestMatch`
+**Supported Media Types:*
 
 ```typescript
-getBestMatch(
-  accept: MediaType[],
-  supported: MediaType[]
-): MediaType | null
+const SUPPORTED_READ: MediaType[] = [
+  'application/rdf+xml',
+  'text/turtle',
+  'application/n-triples',
+  'application/ld+json',
+  'application/trig',
+  'application/n-quads',
+];
+
+const SUPPORTED_WRITE: MediaType[] = [...SUPPORTED_READ];
+const MANDATORY_TRIO: MediaType[] = [
+  'application/rdf+xml',
+  'text/turtle',
+  'application/n-triples',
+];
 ```
 
-**Returns:** Best matching supported media type, or `null` (→ 406)
-
----
-
-### 3.3 Method: getDefaultFormat
+**Type Definitions:**
 
 ```typescript
-getDefaultFormat(): MediaType
-```
-
-**Returns:** First format from mandatory trio (Turtle preferred)
-
----
-
-### 3.4 Method: `validateContentType`
-
-```typescript
-validateContentType(contentType: string): ValidationResult
-```
-
-**Returns:** Valid if supported RDF format, error if not
-
----
-
-## 4. ConcurrencyService
-
-**File:** `src/graph-store/services/concurrency.service.ts`
-
-**Purpose:** Transaction-scoped advisory locking and ETag state comparison for atomic operations.
-
-### 4.1 Method: `lock`
-
-```typescript
-async lock(manager: EntityManager, iri: string): Promise<void>
-```
-
-> **Amendment D-05:** Replaces `withAdvisoryLock(graphId, fn)`. Accepts the TypeORM `EntityManager` from an open transaction so the lock, reads, writes, and version increment all share one DB connection.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `manager` | `EntityManager` | The transaction's entity manager |
-| `iri` | `string` | Graph IRI (hashed to a bigint lock key) |
-
-**Implementation:**
-
-```typescript
-async lock(manager: EntityManager, iri: string): Promise<void> {
-  await manager.query(
-    'SELECT pg_advisory_xact_lock($1)',
-    [this.hashGraphId(iri)]
-  );
+interface MediaType {
+  type: string;
+  subtype: string;
+  params: Record<string, string>;
+  quality: number;  // From Accept header q-value
+  raw: string;  // Original header value
 }
 ```
 
 ---
 
-### 4.2 Method: `compareVersions`
+### 2.4 ConcurrencyService
 
+**File:** `src/graph-store/services/concurrency.service.ts`
+
+**Responsibility:** Transaction-scoped advisory lock management and ETag state comparison.
+
+> **Amendment D-05:** API changed from `withAdvisoryLock(graphId, fn)` using a raw `pg.Pool` connection to `lock(manager, iri)` taking the TypeORM `EntityManager` from an open transaction. This ensures the advisory lock and all subsequent writes share a single DB connection and commit/roll back atomically.
+
+**Public Methods:**
+
+| Method            | Parameters                                              | Returns         | Description                                                                |
+| ----------------- | ------------------------------------------------------- | --------------- | -------------------------------------------------------------------------- |
+| `lock`            | `manager: EntityManager, iri: string`                   | `Promise<void>` | Acquire xact-scoped advisory lock on the transaction's connection          |
+| `compareVersions` | `ifMatchEtag: string, graphId: string, version: number` | `boolean`       | Check graphId + revision (throws `InvalidEtagException` on malformed ETag) |
+| `hashGraphId`     | `iri: string`                                           | `number`        | IRI → 48-bit positive integer for `pg_advisory_xact_lock`                  |
+
+**Implementation:**
 ```typescript
-compareVersions(
-  ifMatchEtag: string,
-  currentGraphId: string,
-  currentVersion: number
-): boolean
+// ConcurrencyService.lock — MUST be called inside an open dataSource.transaction() lambda
+async lock(manager: EntityManager, iri: string): Promise<void> {
+  await manager.query(
+    'SELECT pg_advisory_xact_lock($1)',
+    [this.hashGraphId(iri)]
+  );
+  // Lock is released when the transaction commits or rolls back.
+}
+
+hashGraphId(iri: string): number {
+  const buf  = crypto.createHash('sha256').update(iri).digest();
+  const high = buf.readUInt32BE(0);
+  const low  = buf.readUInt16BE(4);
+  return high * 0x10000 + low;   // 48-bit, no >>> 0 truncation
+}
 ```
 
-**Returns:** `true` iff both the graphId **and** the version component match.
-
-> Checks graphId to prevent a cross-graph false match (different graph, same revision number would otherwise pass).
+**Usage pattern:**
+```typescript
+return this.dataSource.transaction(async (manager) => {
+  await this.concurrencyService.lock(manager, iri);
+  // ... all reads and writes use `manager` on the same connection
+});
+```
 
 ---
 
-### 4.3 Method: `hashGraphId`
-
-```typescript
-hashGraphId(iri: string): number
-```
-
-**Returns:** 48-bit positive integer (no `>>> 0` truncation) for `pg_advisory_xact_lock`.
-
----
-
-## 5. ETagService
+### 2.5 ETagService
 
 **File:** `src/graph-store/services/etag.service.ts`
 
-**Purpose:** Generate and parse composite ETags. Two comparison methods with distinct semantics for read vs write preconditions.
+**Responsibility:** Generate and parse composite ETags. Provide separate comparison methods for read and write preconditions.
 
-### 5.1 Method: `generate`
+> **Amendment D-06:** The original single `compare(etag, version)` method (rev-only) is replaced by two methods with distinct semantics. `compareStrong` is used for `If-None-Match` (reads); `compareState` is used for `If-Match` (writes). Rev-only comparison would allow a Turtle-cached ETag from a *different* graph at the same revision to falsely match.
 
-```typescript
-generate(graphId: string, version: number, mediaType: string): string
-```
+**Public Methods:**
 
-**Returns:** `"{graphId}.{version}.{encodeURIComponent(mediaType)}"`
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `generate` | `graphId: string, version: number, mediaType: string` | `string` | Create ETag: `"{graphId}.{ver}.{encodedMediaType}"` |
+| `parse` | `etag: string` | `ParsedEtag` | Extract components (throws `InvalidEtagException` on malformed) |
+| `compareStrong` | `etag: string, graphId: string, version: number, mediaType: string` | `boolean` | Full ETag comparison — for `If-None-Match` → 304 |
+| `compareState` | `etag: string, graphId: string, version: number` | `boolean` | State-only comparison — for `If-Match` → 412 |
+| `extractFirstEtag` | `headerValue: string` | `string \| null` | Extract first strong ETag from header; `null` for weak (`W/`) or empty |
+
+**Format:** `"{graphId}.{version}.{encodeURIComponent(mediaType)}"`
 
 **Example:** `"a1b2c3d4.42.text%2Fturtle"`
 
----
-
-### 5.2 Method: `parse`
-
-```typescript
-parse(etag: string): ParsedEtag
-```
-
-**Returns:**
+**Type Definitions:**
 ```typescript
 interface ParsedEtag {
   graphId: string;
   version: number;
-  mediaType: string;  // decoded (no percent-encoding)
+  mediaType: string;   // decoded (no percent-encoding)
   raw: string;
 }
 ```
 
 ---
 
-### 5.3 Method: `compareStrong`
-
-```typescript
-compareStrong(
-  etag: string,
-  graphId: string,
-  version: number,
-  mediaType: string
-): boolean
-```
-
-**Purpose:** Full ETag comparison — for `If-None-Match` / 304 (Amendment D-06).
-
-**Returns:** `true` iff graphId, version, **and** mediaType all match.
-
-**Use case:** A client that cached the Turtle representation must NOT receive a 304 when requesting JSON-LD at the same revision — the mediaType component differs.
-
----
-
-### 5.4 Method: `compareState`
-
-```typescript
-compareState(
-  etag: string,
-  graphId: string,
-  version: number
-): boolean
-```
-
-**Purpose:** State-only comparison — for `If-Match` / 412 (Amendment D-06).
-
-**Returns:** `true` iff graphId **and** version match (mediaType irrelevant).
-
-**Use case:** A client that read the graph as Turtle may safely precondition a PATCH or PUT regardless of which format it used to read.
-
----
-
-### 5.5 Method: `extractFirstEtag`
-
-```typescript
-extractFirstEtag(headerValue: string): string | null
-```
-
-**Returns:** First strong ETag from header, `'*'` for wildcard, `null` for empty or weak (`W/`) ETags.
-
----
-
-## 6. RdfService
+### 2.6 RdfService
 
 **File:** `src/rdf/rdf.service.ts`
 
-**Purpose:** Multi-library RDF parsing, serialization, merge, and PATCH application.
+**Responsibility:** RDF parsing, serialization, merge, and PATCH application using a multi-library routing approach.
 
-### 6.1 Method: `parse`
+**Library routing:**
 
-*(routes internally to N3.js / rdfxml-streaming-parser / jsonld-streaming-parser)*
+| Media type | Parse | Serialize |
+|-----------|-------|-----------|
+| `text/turtle`, `application/trig`, `application/n-triples`, `application/n-quads` | N3.js | N3.js |
+| `application/rdf+xml` | rdfxml-streaming-parser | in-house `RdfXmlSerializer` |
+| `application/ld+json` | jsonld-streaming-parser | jsonld |
 
+**Public Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `parse` | `data: Buffer, contentType: string` | `Promise<DatasetCore>` | Parse to in-memory dataset (routes by media type) |
+| `serialize` | `dataset: DatasetCore, mediaType: string` | `Promise<string>` | Serialize to string (triple formats; no graph label) |
+| `serializeStream` | `dataset: DatasetCore, mediaType: string` | `Readable` | Streaming serialization |
+| `serializeToDataset` | `dataset: DatasetCore, mediaType: string, graphIri: string \| null` | `Promise<string>` | Serialize with graph label for quad formats (UR-FMT-05) |
+| `triplesToDataset` | `triples: NormalizedTriple[], graphIri: string \| null` | `DatasetCore` | Reconstruct DatasetCore from persisted rows |
+| `merge` | `existing: DatasetCore, incoming: DatasetCore` | `DatasetCore` | RDF merge at DatasetCore level (standardizes bnodes apart) |
+| `mergeNormalized` | `existing: NormalizedTriple[], incoming: NormalizedTriple[]` | `NormalizedTriple[]` | Row-level deduplicating union (bnodes already standardized by ingest) |
+| `parseWithReconciliation` | `data: Buffer, contentType: string, targetIri: string \| null` | `Promise<NormalizedTriple[]>` | Parse + enforce single-graph scope + standardize blank nodes apart |
+| `applyPatch` | `existing: NormalizedTriple[], parsed: SparqlUpdate, targetIri: string \| null` | `Promise<NormalizedTriple[]>` | Apply SPARQL Update AST to existing rows (`null` = default graph, GSP-010 v4) |
+
+**Blank-node storage strategy:**
+- Blank-node **objects** → `objectType: 'B'`, `object` column stores the genid label **without** `_:` prefix (e.g. `genid-550e8400`). Reconstructed by `triplesToDataset` as `DataFactory.blankNode(label)` → `termType === 'BlankNode'`.
+- Blank-node **subjects** → `subjectType: 'B'`, `subject` column stores the genid label **without** `_:` prefix (same convention as objects). Reconstructed by `triplesToDataset` as `DataFactory.blankNode(label)`.
+- RDF/XML serialization uses the in-house `RdfXmlSerializer`. If a graph cannot be represented in RDF/XML, serialization raises `RdfXmlSerializationException` rather than dropping data.
+
+**Type Definitions:**
 ```typescript
-async parse(
-  data: Buffer | Stream,
-  contentType: string
-): Promise<DatasetCore>
+import { DatasetCore } from '@rdfjs/types';
+import { SparqlUpdate } from 'sparqljs';
+
+interface NormalizedTriple {
+  subject:    string;   // IRI (U) or genid label without '_:' (B)
+  subjectType:'U' | 'B';
+  predicate:  string;
+  object:     string;   // IRI (U), literal (L), or genid label without '_:' (B)
+  objectType: 'U' | 'L' | 'B';
+  langTag?:   string;
+  datatype?:  string;
+}
 ```
-
-|Parameter|Type|Description|
-|---|---|---|
-|`data`|`Buffer \| Stream`|RDF input|
-|`contentType`|`string`|Format of input|
-
-**Returns:** N3.js DatasetCore
-
-**Supported Formats:**
-
-- `application/rdf+xml`
-- `text/turtle`
-- `application/n-triples`
-- `application/ld+json`
-- `application/trig`
-- `application/n-quads`
-
-### 6.2 Method: `serialize`
-
-```typescript
-async serialize(dataset: DatasetCore, mediaType: string): Promise<string>
-```
-
-**Use for:** triple formats (Turtle, N-Triples, RDF/XML). No graph label applied.
 
 ---
 
-### 6.3 Method: `serializeToDataset`
-
-```typescript
-async serializeToDataset(
-  dataset: DatasetCore,
-  mediaType: string,
-  graphIri: string | null
-): Promise<string>
-```
-
-**Use for:** quad formats (TriG, N-Quads, JSON-LD). Applies `graphIri` as the named-graph label per UR-FMT-05. Pass `null` for the default graph.
-
----
-### 6.4 Method: `merge`
-
-```typescript
-merge(
-  existing: DatasetCore,
-  incoming: DatasetCore
-): DatasetCore
-```
-
-**Returns:** RDF merge of two datasets
-
-**Behavior:**
-
-1.Create blank node mapper
-
-2.Rename incoming blank nodes with fresh identifiers
-
-3.Return union of datasets
-
----
-
-### 6.5 Method: `triplesToDataset`
-
-```typescript
-triplesToDataset(triples: NormalizedTriple[], graphIri: string | null): DatasetCore
-```
-
-**Purpose:** Reconstruct an in-memory `DatasetCore` from persisted `NormalizedTriple[]` rows. Needed by `getGraph` before serialization.
-
-**Type B handling:** `objectType: 'B'` → `DataFactory.blankNode(t.object)` (label stored without `_:` prefix) → `termType === 'BlankNode'` preserved through the round-trip so `countDistinctBlankNodes` returns non-zero values (gate G5).
-
----
-
-### 6.6 Method: `merge`
-
-```typescript
-merge(existing: DatasetCore, incoming: DatasetCore): DatasetCore
-```
-
-**Behavior:** Standardizes incoming blank nodes apart then unions. Uses fresh `genid-{uuid}` labels for all incoming blank nodes so they cannot be identified with existing ones.
-
----
-
-### 6.7 Method: `mergeNormalized`
-
-```typescript
-mergeNormalized(
-  existing: NormalizedTriple[],
-  incoming: NormalizedTriple[]
-): NormalizedTriple[]
-```
-
-**Purpose:** Row-level deduplicating set-union. Used by `postGraph`. Blank nodes are already standardized apart by `parseWithReconciliation`'s skolemization, so this is a pure union with key-based deduplication.
-
----
-
-### 6.8 Method: `parseWithReconciliation`
-
-```typescript
-async parseWithReconciliation(
-  data: Buffer,
-  contentType: string,
-  targetGraphIri: string | null
-): Promise<NormalizedTriple[]>
-```
-
-**Purpose:** Parse, enforce single-graph scope (UR-FMT-04), and skolemize blank nodes.
-
-**Validation (Amendment D-04 — corrected):**
-- Default-graph triples → **always accepted**, mapped to the target (named or default). *Not rejected.*
-- Named graph matching `targetGraphIri` → accepted.
-- Named graph whose IRI differs from `targetGraphIri`, or any named graph when target is the default graph → throws `DatasetMismatchException` (→ 400).
-
----
-
-### 6.9 Method: `applyPatch`
-
-```typescript
-async applyPatch(
-  existing: NormalizedTriple[],
-  parsed: SparqlUpdate,
-  targetIri: string
-): Promise<NormalizedTriple[]>
-```
-
-**Purpose:** Apply a pre-parsed SPARQL Update AST to existing rows.
-
-**v1 scope:** `INSERT DATA` / `DELETE DATA` and trivial `WHERE {}` / `WHERE { ?s ?p ?o }`. Complex WHERE patterns throw `UnprocessableEntityException`.
-
----
-
-## 7. PatchService
+### 2.7 PatchService
 
 **File:** `src/graph-store/services/patch.service.ts`
 
-**Purpose:** Thin DI wrapper over `RdfService` providing named SPARQL Update operations. **This class MUST be implemented** — it is registered in `GraphStoreModule` providers, and NestJS will fail at startup if the class does not exist.
+**Responsibility:** SPARQL Update validation, scope enforcement, and application. **This is a thin DI wrapper that delegates to `RdfService`** (Amendment S-01). The class must be implemented so the NestJS module registration resolves; without it the application will fail to start with a DI resolution error.
 
-### 7.1 Method: `validate`
+**Public Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `validate` | `patch: string` | `ValidationResult` | Validate SPARQL Update syntax (delegates to `sparqljs`) |
+| `parse` | `patch: string` | `ParsedUpdate` | Parse into operations (delegates to `sparqljs`) |
+| `scopeToGraph` | `operations: UpdateOperation[], targetIri: string \| null` | `ValidationResult` | Check graph scope — violation → 422 (`null` target additionally rejects any `GRAPH` clause) |
+| `apply` | `existing: NormalizedTriple[], parsed: SparqlUpdate, targetIri: string \| null` | `Promise<NormalizedTriple[]>` | Apply patch (delegates to `RdfService.applyPatch`) |
+
+**Type Definitions:**
 
 ```typescript
-validate(patch: string): ValidationResult
+interface ParsedUpdate {
+  operations: UpdateOperation[];
+  prefixes: Record<string, string>;
+}
+
+interface UpdateOperation {
+  type: 'insert' | 'delete' | 'load' | 'clear';
+  graph?: string;
+  // ... other operation-specific fields
+}
+
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  operations?: UpdateOperation[];
+}
 ```
 
-**Behavior:** Delegates to `sparqljs` parser; returns `{ valid: false, error }` on syntax error.
+**Dependencies:** `RdfService`
 
 ---
 
-### 7.2 Method: `parse`
-
-```typescript
-parse(patch: string): ParsedUpdate
-```
-
-**Behavior:** Delegates to `sparqljs`; returns parsed AST.
-
----
-
-### 7.3 Method: `scopeToGraph`
-
-```typescript
-scopeToGraph(
-  operations: UpdateOperation[],
-  targetIri: string
-): ValidationResult
-```
-
-**Behavior:** Inspects parsed AST for references to any graph other than `targetIri`. Multi-graph → `{ valid: false }` (→ 422).
-
----
-
-### 7.4 Method: `apply`
-
-```typescript
-async apply(
-  existing: NormalizedTriple[],
-  parsed: SparqlUpdate,
-  targetIri: string
-): Promise<NormalizedTriple[]>
-```
-
-**Behavior:** Delegates to `RdfService.applyPatch(existing, parsed, targetIri)`.
-
----
-
-## 8. AuthService
+### 2.8 AuthService
 
 **File:** `src/auth/auth.service.ts`
 
-**Purpose:** Pluggable authentication with configurable strategies.
+**Responsibility:** Pluggable authentication with configurable strategies.
 
-### 8.1 Method: `authenticate`
+**Public Methods:**
+
+| Method         | Parameters                                             | Returns               | Description            |
+| -------------- | ------------------------------------------------------ | --------------------- | ---------------------- |
+| `authenticate` | `request: Request`                                     | `Promise<AuthResult>` | Authenticate request   |
+| `addStrategy`  | `strategy: AuthStrategy`                               | `void`                | Register auth strategy |
+| `authorize`    | `identity: Identity, resource: string, action: string` | `boolean`             | Check permissions      |
+
+**Type Definitions:**
 
 ```typescript
-async authenticate(
-  request: Request
-): Promise<AuthResult>
-```
+interface AuthStrategy {
+  name: string;
+  authenticate(request: Request): Promise<AuthResult>;
+  canHandle(request: Request): boolean;
+}
 
-**Returns:** Authentication result with identity
-
-```typescript
 interface AuthResult {
   authenticated: boolean;
   identity?: Identity;
   scheme: string;
 }
-```
 
-**Behavior:**
+interface Identity {
+  id: string;
+  roles: string[];
+  claims: Record<string, any>;
+}
 
-1.Iterate registered strategies
-
-2.First matching strategy authenticates
-
-3.Return result
-
----
-
-### 8.2 Method: `addStrategy`
-
-```typescript
-addStrategy(strategy: AuthStrategy): void
-```
-
-**Purpose:** Register authentication strategy at startup
-
----
-
-### 8.3 Method: `authorize`
-
-```typescript
-authorize(
-  identity: Identity,
-  resource: string,
-  action: string
-): boolean
-```
-
-**Returns:** `true` if identity can perform action on resource
-
----
-
-## 9. CapabilityService
-
-**File:** `src/graph-store/services/capability.service.ts`
-
-**Purpose:** Build OPTIONS responses for capability discovery.
-
-### 9.1 Method: `getAllowedMethods`
-
-```typescript
-getAllowedMethods(resource: string): string[]
-```
-
-**Returns:** Array of allowed HTTP methods
-
----
-
-### 9.2 Method: `getAcceptPatch`
-
-```typescript
-getAcceptPatch(): string[]
-```
-
-**Returns:** `['application/sparql-update']`
-
----
-
-### 9.3 Method: `buildOptionsResponse`
-
-```typescript
-buildOptionsResponse(resource: string): OptionsResponse
-```
-
-**Returns:** Complete OPTIONS response
-
-```typescript
-interface OptionsResponse {
-  status: 200;
-  headers: {
-    Allow: string;
-    'Accept-Patch': string;
-    'Content-Length': string;
-  };
+interface AccessPolicy {
+  can(identity: Identity, resource: string, action: string): boolean;
 }
 ```
 
 ---
 
-*Service definitions amended per pre-construction review. See `GSP-ApplicationDesign-Review.md`.*
+### 2.9 CapabilityService
+
+**File:** `src/graph-store/services/capability.service.ts`
+
+**Responsibility:** Build OPTIONS response with allowed methods and capabilities.
+
+**Public Methods:**
+
+| Method                 | Parameters         | Returns           | Description               |
+| ---------------------- | ------------------ | ----------------- | ------------------------- |
+| `getAllowedMethods`    | `resource: string` | `string[]`        | List allowed methods      |
+| `getAcceptPatch`       | —                  | `string[]`        | List accepted patch types |
+| `buildOptionsResponse` | `resource: string` | `OptionsResponse` | Build OPTIONS response    |
+
+---
+
+## 3. Repositories
+
+### 3.1 GraphRepository
+
+**File:** `src/graph-store/repositories/graph.repository.ts`
+
+**Responsibility:** Graph CRUD and version management.
+
+> **Amendment D-01:** `Graph.iri` is `string` (never `null`). The default graph uses the sentinel IRI `'urn:x-arq:DefaultGraph'`. `create(iri: string)` no longer accepts `null`. `findDefault()` does a simple lookup — the migration seeds the row, this method never auto-creates.
+
+**Public Methods:**
+
+| Method                  | Parameters                            | Returns                  | Description                                     |
+| ----------------------- | ------------------------------------- | ------------------------ | ----------------------------------------------- |
+| `findByIri`             | `iri: string`                         | `Promise<Graph \| null>` | Find graph by IRI                               |
+| `findById`              | `id: string`                          | `Promise<Graph \| null>` | Find graph by ID                                |
+| `findDefault`           | —                                     | `Promise<Graph>`         | Get default graph (throws if migration not run) |
+| `create`                | `iri: string`                         | `Promise<Graph>`         | Create named graph (IRI always a real string)   |
+| `delete`w               | `id: string`                          | `Promise<void>`          | Delete graph                                    |
+| `exists`                | `iri: string`                         | `Promise<boolean>`       | Check existence                                 |
+| `findByIriInTxn`        | `manager: EntityManager, iri: string` | `Promise<Graph \| null>` | Transaction-aware find                          |
+| `createInTxn`           | `manager: EntityManager, iri: string` | `Promise<Graph>`         | Transaction-aware create                        |
+| `deleteInTxn`           | `manager: EntityManager, id: string`  | `Promise<void>`          | Transaction-aware delete                        |
+| `incrementVersionInTxn` | `manager: EntityManager, id: string`  | `Promise<number>`        | Increment version; returns new value            |
+
+**Constant:**
+```typescript
+export const DEFAULT_GRAPH_IRI = 'urn:x-arq:DefaultGraph';
+```
+
+**Type Definitions:**
+```typescript
+interface Graph {
+  id: string;
+  iri: string;      // Always a string. Default graph uses DEFAULT_GRAPH_IRI sentinel.
+  version: number;  // BIGINT in DB; coerced to number by entity transformer
+  isDefault: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+---
+
+### 3.2 TripleRepository
+
+**File:** `src/graph-store/repositories/triple.repository.ts`
+
+**Responsibility:** Triple CRUD and bulk operations.
+
+**Public Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `findByGraphId` | `graphId: string` | `Promise<NormalizedTriple[]>` | Get all triples |
+| `findByGraphIdStream` | `graphId: string, batchSize?: number` | `Readable` | Stream triples (synchronous, cursor-based, bounded memory) |
+| `insert` | `graphId: string, triples: NormalizedTriple[]` | `Promise<void>` | Bulk insert (`ON CONFLICT DO NOTHING` per unique index) |
+| `deleteByGraphId` | `graphId: string` | `Promise<number>` | Delete all triples; returns count |
+| `countByGraphId` | `graphId: string` | `Promise<number>` | Count triples |
+| `insertInTxn` | `manager: EntityManager, graphId: string, triples: NormalizedTriple[]` | `Promise<void>` | Transaction-aware insert |
+| `deleteByGraphIdInTxn` | `manager: EntityManager, graphId: string` | `Promise<number>` | Transaction-aware delete |
+
+> [!NOTE]
+> **`findByGraphIdStream` returns `Readable` synchronously** (not `Promise<Readable>`). Uses cursor-based paged SELECT to keep memory bounded for large graphs (NFR-04).
+
+> [!NOTE]
+> **`insert` uses `ON CONFLICT DO NOTHING`** against the `idx_triples_unique` composite unique index, providing DB-level deduplication as a safety net.
+
+---
+
+## 4. Guards
+
+### 4.1 JwtAuthGuard
+
+**File:** `src/auth/guards/jwt-auth.guard.ts`
+
+**Responsibility:** Validate JWT bearer tokens.
+
+**Implementation:** Extends NestJS `CanActivate`, uses `@nestjs/jwt` for validation.
+
+---
+
+### 4.2 ApiKeyGuard
+
+**File:** `src/auth/guards/api-key.guard.ts`
+
+**Responsibility:** Validate API Key from `X-API-Key` header.
+
+**Header:** `X-API-Key: <configured-key>`
+
+---
+
+## 5. Interceptors
+
+### 5.1 TracingInterceptor
+
+**File:**`src/common/interceptors/tracing.interceptor.ts`
+
+**Responsibility:** Create OpenTelemetry spans for requests.
+
+**Attributes:**
+
+- `http.method`
+- `http.url`
+- `gsp.graph.iri`
+- `gsp.operation`
+
+---
+
+### 5.2 LoggingInterceptor
+
+**File:**`src/common/interceptors/logging.interceptor.ts`
+
+**Responsibility:** Structured request/response logging.
+
+**Log Fields:**
+
+```typescript
+{
+  method: string;
+  path: string;
+  graphIri: string | null;
+  contentType: string;
+  outcome: number;
+  duration_ms: number;
+  traceId: string;
+}
+```
+### 5.3 ETagInterceptor
+
+**File:** `src/common/interceptors/etag.interceptor.ts`
+
+**Responsibility:** Inject `ETag` header and set `Vary: Accept` on successful GET/HEAD responses. `Vary: Accept` is only set for GET/HEAD (negotiated responses), not for PUT/POST/DELETE/PATCH.
+
+---
+
+## 6. Exception Filters
+
+### 6.1 GspExceptionFilter
+
+**File:** `src/common/filters/gsp-exception.filter.ts`
+
+**Mappings:**
+
+| Exception                            | Status Code                                         |
+| ------------------------------------ | --------------------------------------------------- |
+| `ParseException`                     | 400                                                 |
+| `InvalidIriException`                | 400                                                 |
+| `DatasetMismatchException`           | 400                                                 |
+| `UnauthorizedException`              | 401                                                 |
+| `ForbiddenException`                 | 403                                                 |
+| `GraphNotFoundException`             | 404                                                 |
+| `MethodNotAllowedException`          | 405 (with `Allow` header)                           |
+| `NotAcceptableException`             | 406                                                 |
+| `ConflictException`                  | 409                                                 |
+| `PreconditionFailedException`        | 412                                                 |
+| `PatchUnsupportedMediaTypeException` | 415 (with `Accept-Patch` header)                    |
+| `UnsupportedMediaTypeException`      | 415                                                 |
+| `UnprocessableEntityException`       | 422                                                 |
+| `PreconditionRequiredException`      | 428                                                 |
+| `InvalidEtagException`               | 400 (malformed ETag treated as absent precondition) |
+
+---
+
+## 7. Module Structure
+
+```typescript
+// app.module.ts
+@Module({
+  imports: [
+    DatabaseModule,
+    RdfModule,
+    AuthModule,
+    GraphStoreModule,
+  ],
+})
+export class AppModule {}
+
+// graph-store.module.ts
+@Module({
+  controllers: [
+    GraphStoreController,
+    CapabilityController,
+  ],
+  providers: [
+    GraphStoreService,
+    GraphRoutingService,
+    ContentNegotiationService,
+    ConcurrencyService,
+    ETagService,
+    PatchService,       // thin DI wrapper over RdfService — MUST be implemented
+    CapabilityService,
+    GraphRepository,
+    TripleRepository,
+  ],
+  exports: [GraphStoreService],
+})
+export class GraphStoreModule {}
+
+// rdf.module.ts
+@Module({
+  providers: [RdfService],
+  exports: [RdfService],
+})
+export class RdfModule {}
+
+// auth.module.ts
+@Module({
+  providers: [
+    AuthService,
+    JwtAuthGuard,
+    ApiKeyGuard,
+    OptionalAuthGuard,
+    JwtStrategy,
+    ...authProviders,
+  ],
+  exports: [AuthService, ...authGuards],
+})
+export class AuthModule {}
+```
+
+---
+
+*Component definitions amended per pre-construction review. See `GSP-ApplicationDesign-Review.md`.*
