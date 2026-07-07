@@ -21,7 +21,7 @@ export function putGraph(
   app: INestApplication,
   iri: string,
   body: string,
-  options: { contentType?: string; ifMatch?: string } = {},
+  options: { contentType?: string; ifMatch?: string; ifNoneMatch?: string } = {},
 ) {
   const req = request(app.getHttpServer())
     .put(`/graph/${encodeURIComponent(iri)}`)
@@ -30,6 +30,10 @@ export function putGraph(
 
   if (options.ifMatch) {
     req.set('If-Match', options.ifMatch);
+  }
+
+  if (options.ifNoneMatch) {
+    req.set('If-None-Match', options.ifNoneMatch);
   }
 
   return req;

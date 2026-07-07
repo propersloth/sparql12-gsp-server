@@ -53,13 +53,45 @@ export class GraphRepository {
     return m.findOne(Graph, { where: { iri } });
   }
 
+  async findByIriOrDefaultInTxn(m: EntityManager, iri: string | null): Promise<Graph | null> {
+    if (iri === null) {
+      const g = await m.findOne(Graph, { where: { isDefault: true } });
+      if (!g) throw new Error('Default graph row missing — run migrations (GSP-002)');
+      return g;
+    }
+    return this.findByIriInTxn(m, iri);
+  }
+
   async createInTxn(m: EntityManager, iri: string): Promise<Graph> {
     const g = m.create(Graph, { iri, isDefault: false });
     return m.save(Graph, g);
   }
 
   async deleteInTxn(m: EntityManager, id: string): Promise<void> {
-    await m.delete(Graph, { id });
+    const rows: Array<{ is_default: boolean | null; deleted: number }> = await m.query(
+      `
+        WITH target AS (
+          SELECT is_default FROM graphs WHERE id = $1
+        ),
+        deleted AS (
+          DELETE FROM graphs
+          WHERE id = $1 AND is_default = false
+          RETURNING id
+        )
+        SELECT
+          (SELECT is_default FROM target) AS is_default,
+          (SELECT COUNT(*)::int FROM deleted) AS deleted
+      `,
+      [id],
+    );
+
+    if ((rows[0]?.deleted ?? 0) > 0) {
+      return;
+    }
+
+    if (rows[0]?.is_default === true) {
+      throw new Error('Default graph row cannot be deleted');
+    }
   }
 
   async incrementVersionInTxn(m: EntityManager, id: string): Promise<number> {

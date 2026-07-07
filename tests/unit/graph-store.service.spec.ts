@@ -2,7 +2,6 @@ import { NotAcceptableException, NotFoundException } from '@nestjs/common';
 import { DEFAULT_GRAPH_IRI } from '../../src/database/entities/graph.entity';
 import type { Graph } from '../../src/database/entities/graph.entity';
 import { RdfXmlSerializationException } from '../../src/rdf/rdf.exceptions';
-import type { RdfService } from '../../src/rdf/rdf.service';
 import { GraphStoreService } from '../../src/graph-store/services/graph-store.service';
 
 describe('GraphStoreService', () => {
@@ -48,23 +47,43 @@ describe('GraphStoreService', () => {
       triplesToDataset: jest.fn(() => ({ quads: [] })),
       serialize: overrides?.serialize ?? jest.fn(async () => 'ttl'),
       serializeToDataset: overrides?.serializeToDataset ?? jest.fn(async () => 'trig'),
-    } as unknown as RdfService;
+    };
+    const dataSource = {
+      transaction: jest.fn(async (cb: (manager: unknown) => unknown) => cb({})),
+    };
+    const routing = {
+      validateIri: jest.fn((iri: string) => ({ valid: true, normalizedIri: iri })),
+    };
+    const concurrency = {
+      lock: jest.fn(),
+    };
+    const configService = {
+      get: jest.fn(() => undefined),
+    };
 
     const service = new GraphStoreService(
-      graphRepository as any,
-      tripleRepository as any,
+      dataSource as any,
+      rdfService as any,
+      routing as any,
       contentNegotiation as any,
       etagService as any,
-      rdfService,
+      concurrency as any,
+      graphRepository as any,
+      tripleRepository as any,
+      configService as any,
     );
 
     return {
       service,
+      dataSource,
       graphRepository,
       tripleRepository,
+      routing,
       contentNegotiation,
       etagService,
       rdfService,
+      concurrency,
+      configService,
     };
   };
 
