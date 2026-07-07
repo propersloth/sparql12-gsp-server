@@ -4,6 +4,10 @@ import * as N3 from 'n3';
 import { RdfXmlParser } from 'rdfxml-streaming-parser';
 import { JsonLdParser } from 'jsonld-streaming-parser';
 import jsonld from 'jsonld';
+// NOTE: sparqljs is used for SPARQL Update AST parsing. The package is
+// deprecated but remains the best-available option for SPARQL 1.1/1.2 parsing
+// in Node.js; a migration path should be evaluated when an actively maintained
+// alternative becomes available (see GSP-010 issue commentary).
 import { Update, UpdateOperation, Quads, BgpPattern, GraphQuads, Triple as SparqlTriple } from 'sparqljs';
 import { randomUUID } from 'crypto';
 import { Readable } from 'stream';

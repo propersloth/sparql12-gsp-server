@@ -1,11 +1,5 @@
 import type { DatasetCore } from '@rdfjs/types';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const rdfCanonize = require('rdf-canonize') as {
-  canonize: (
-    dataset: unknown[],
-    options: { algorithm: string },
-  ) => Promise<string>;
-};
+import { canonize } from 'rdf-canonize';
 
 import { RdfService } from '../../src/rdf/rdf.service';
 
@@ -25,8 +19,8 @@ export async function assertIsomorphic(
 ): Promise<void> {
   const da = [...(await svc.parse(Buffer.from(a), ctA))];
   const db = [...(await svc.parse(Buffer.from(b), ctB))];
-  const ca = await rdfCanonize.canonize(da, { algorithm: 'RDFC-1.0' });
-  const cb = await rdfCanonize.canonize(db, { algorithm: 'RDFC-1.0' });
+  const ca = await canonize(da, { algorithm: 'RDFC-1.0' });
+  const cb = await canonize(db, { algorithm: 'RDFC-1.0' });
   expect(ca).toEqual(cb);
 }
 

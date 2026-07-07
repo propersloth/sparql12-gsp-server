@@ -16,8 +16,6 @@
     "@nestjs/core": "11.1.27",
     "@nestjs/platform-express": "11.1.27",
     "@nestjs/typeorm": "11.0.3",
-    "@rdfjs/data-model": "^2.1.2",
-    "@rdfjs/dataset": "^2.0.3",
     "class-transformer": "0.5.1",
     "class-validator": "0.15.1",
     "jsonld": "^9.0.0",
