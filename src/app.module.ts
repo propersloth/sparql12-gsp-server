@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { createTypeOrmOptions } from './database/database.config';
 import { HealthController } from './health/health.controller';
-import { RdfService } from './rdf/rdf.service';
+import { RdfServiceImpl } from './rdf/rdf.service';
 
 const databaseImports =
   process.env.GSP_DISABLE_DB === 'true'
@@ -19,6 +19,6 @@ const databaseImports =
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), ...databaseImports],
   controllers: [HealthController],
-  providers: [RdfService],
+  providers: [RdfServiceImpl],
 })
 export class AppModule {}
