@@ -1,8 +1,19 @@
+/**
+ * NAMING CAUTION (v2):
+ *   /graph/:iri   — percent-encoded IRI parameter (direct identification)
+ *   /graphs/:uuid — server-minted UUID (minted-graph resource shape, D-3)
+ * These two route prefixes differ by ONE character. Do not confuse them.
+ */
 import {
+  All,
+  BadRequestException,
   Controller,
   Delete,
   Get,
   Head,
+  Options,
+  Optional,
+  Param,
   Patch,
   Post,
   Put,
@@ -12,8 +23,11 @@ import {
   UseFilters,
   UseInterceptors,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { MethodNotAllowedFilter } from '../common/filters/method-not-allowed.filter';
+import { MethodNotAllowedException } from './exceptions/method-not-allowed.exception';
 import { PatchMediaTypeFilter } from './filters/patch-media-type.filter';
 import { ETagService } from './services/etag.service';
 import { GraphRoutingService } from './services/graph-routing.service';
@@ -31,6 +45,12 @@ type ResponseLike = {
   setHeader(name: string, value: string): void;
 };
 
+type OptionsResponseLike = {
+  status(code: number): OptionsResponseLike;
+  header(name: string, value: string): OptionsResponseLike;
+  send(): void;
+};
+
 type UploadedFileLike = {
   buffer: Buffer;
   mimetype: string;
@@ -39,11 +59,29 @@ type UploadedFileLike = {
 
 @Controller()
 export class GraphStoreController {
+  /** Allowed methods for /graph/:iri and /graphs/:uuid (v2: POST added, C2). */
+  private readonly graphResourceAllow = 'GET, HEAD, PUT, POST, DELETE, PATCH, OPTIONS';
+  /** Allowed methods for /graph-store (v2: PATCH added, D-2). */
+  private readonly storeAllow = 'GET, HEAD, PUT, POST, DELETE, PATCH, OPTIONS';
+
   constructor(
     private readonly graphStore: GraphStoreService,
     private readonly routing: GraphRoutingService,
     private readonly etagService: ETagService,
+    @Optional() private readonly configService?: ConfigService,
   ) {}
+
+  private get patchEnabled(): boolean {
+    return this.configService?.get<boolean>('GSP_PATCH_ENABLED') ?? true;
+  }
+
+  private get baseUrl(): string {
+    return this.configService?.get<string>('GSP_BASE_URL') ?? 'http://localhost:3000';
+  }
+
+  private mintedIri(uuid: string): string {
+    return `${this.baseUrl}/graphs/${uuid}`;
+  }
 
   @Get('graph/:iri')
   async getDirect(
@@ -147,6 +185,175 @@ export class GraphStoreController {
     await this.handlePatch(req, res);
   }
 
+  /**
+   * v2 (H4 fix): headers set explicitly via Res(); the v1 version returned an
+   * object from the method body, which Nest serializes as the JSON response
+   * body — Allow/Accept-Patch never reached actual HTTP headers.
+   */
+  @Options('graph/:iri')
+  optionsGraph(@Res() res: OptionsResponseLike): void {
+    res.header('Allow', this.graphResourceAllow);
+    if (this.patchEnabled) {
+      res.header('Accept-Patch', 'application/sparql-update');
+    }
+    res.status(204).send();
+  }
+
+  /**
+   * Catch-all for /graph/:iri — any verb not listed above → 405.
+   * MUST appear AFTER all specific handlers so NestJS routes specific
+   * methods first and only falls through here for unregistered verbs.
+   */
+  @All('graph/:iri')
+  @UseFilters(MethodNotAllowedFilter)
+  catchAllGraph(): never {
+    throw new MethodNotAllowedException(this.graphResourceAllow);
+  }
+
+  // ── Resource: /graph-store (indirect identification, incl. ?default) ───────
+
+  @Options('graph-store')
+  optionsStore(@Res() res: OptionsResponseLike): void {
+    res.header('Allow', this.storeAllow);
+    if (this.patchEnabled) {
+      res.header('Accept-Patch', 'application/sparql-update');
+    }
+    res.status(204).send();
+  }
+
+  @All('graph-store')
+  @UseFilters(MethodNotAllowedFilter)
+  catchAllStore(): never {
+    throw new MethodNotAllowedException(this.storeAllow);
+  }
+
+  // ── Resource: /graphs/:uuid (v2, D-3 — direct route for server-minted graphs) ──
+  //
+  // POST-to-store mints {baseUrl}/graphs/{uuid} and returns it as an absolute
+  // Location header. Without this resource shape, a client that follows that
+  // Location with a plain GET received a generic Nest 404. Every handler here
+  // reconstructs the full IRI and delegates to the SAME GraphStoreService
+  // methods used by /graph/:iri.
+
+  @Get('graphs/:uuid')
+  async getMintedGraph(
+    @Param('uuid') uuid: string,
+    @Req() req: RequestLike,
+    @Res({ passthrough: true }) res: ResponseLike,
+  ): Promise<string> {
+    const iri = this.mintedIri(uuid);
+    const result = await this.graphStore.getGraph(
+      iri,
+      req.header('accept'),
+      req.header('if-none-match') ?? undefined,
+    );
+    res.status(result.status);
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('ETag', result.etag);
+    res.setHeader('Vary', 'Accept');
+    return result.content;
+  }
+
+  @Head('graphs/:uuid')
+  async headMintedGraph(
+    @Param('uuid') uuid: string,
+    @Req() req: RequestLike,
+    @Res({ passthrough: true }) res: ResponseLike,
+  ): Promise<void> {
+    const iri = this.mintedIri(uuid);
+    const result = await this.graphStore.headGraph(iri, req.header('accept'));
+    res.status(200);
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('ETag', result.etag);
+    res.setHeader('Vary', 'Accept');
+  }
+
+  @Put('graphs/:uuid')
+  async putMintedGraph(
+    @Param('uuid') uuid: string,
+    @Req() req: RequestLike,
+    @Res({ passthrough: true }) res: ResponseLike,
+  ): Promise<void> {
+    const iri = this.mintedIri(uuid);
+    const body = await readRequestBody(req);
+    const preconditions = this.getPreconditions(req);
+    const result = await this.graphStore.putGraph(
+      iri,
+      body,
+      req.header('content-type') ?? '',
+      preconditions,
+    );
+    this.applyMutationResponse(res, result.status, result.etag, result.location);
+  }
+
+  @Post('graphs/:uuid')
+  @UseInterceptors(AnyFilesInterceptor({ storage: memoryStorage() }))
+  async postMintedGraph(
+    @Param('uuid') uuid: string,
+    @Req() req: RequestLike,
+    @UploadedFiles() files: UploadedFileLike[] = [],
+    @Res({ passthrough: true }) res: ResponseLike,
+  ): Promise<void> {
+    const iri = this.mintedIri(uuid);
+    const parts = toMultipartParts(files);
+    const body = parts ? Buffer.alloc(0) : await readRequestBody(req);
+    const result = await this.graphStore.postGraph(
+      body,
+      req.header('content-type') ?? '',
+      iri,
+      parts,
+    );
+    this.applyMutationResponse(res, result.status, result.etag, result.location);
+  }
+
+  @Delete('graphs/:uuid')
+  async deleteMintedGraph(
+    @Param('uuid') uuid: string,
+    @Req() req: RequestLike,
+    @Res({ passthrough: true }) res: ResponseLike,
+  ): Promise<void> {
+    const iri = this.mintedIri(uuid);
+    const result = await this.graphStore.deleteGraph(iri, this.getPreconditions(req));
+    this.applyMutationResponse(res, result.status, result.etag);
+  }
+
+  @Patch('graphs/:uuid')
+  @UseFilters(PatchMediaTypeFilter)
+  async patchMintedGraph(
+    @Param('uuid') uuid: string,
+    @Req() req: RequestLike,
+    @Res({ passthrough: true }) res: ResponseLike,
+  ): Promise<void> {
+    const iri = this.mintedIri(uuid);
+    const body = await readRequestBody(req);
+    const ifMatch = req.header('if-match') ?? undefined;
+    const result = await this.graphStore.patchGraph(
+      iri,
+      body.toString('utf-8'),
+      req.header('content-type') ?? '',
+      ifMatch,
+    );
+    res.status(result.status);
+    if (result.etag) {
+      res.setHeader('ETag', result.etag);
+    }
+  }
+
+  @Options('graphs/:uuid')
+  optionsMintedGraph(@Res() res: OptionsResponseLike): void {
+    res.header('Allow', this.graphResourceAllow);
+    if (this.patchEnabled) {
+      res.header('Accept-Patch', 'application/sparql-update');
+    }
+    res.status(204).send();
+  }
+
+  @All('graphs/:uuid')
+  @UseFilters(MethodNotAllowedFilter)
+  catchAllMintedGraph(): never {
+    throw new MethodNotAllowedException(this.graphResourceAllow);
+  }
+
   private async handleGet(req: RequestLike, res: ResponseLike): Promise<string> {
     const target = this.routing.resolveTarget(req);
     const result = await this.graphStore.getGraph(
@@ -204,6 +411,12 @@ export class GraphStoreController {
 
   private async handleDelete(req: RequestLike, res: ResponseLike): Promise<void> {
     const target = this.routing.resolveTarget(req);
+    // Require an explicit target on the indirect resource: neither ?graph=<iri> nor
+    // ?default was provided (isIndirect=false) while iri is null → 400, not 405.
+    // Direct routes always have a non-null iri, so this check never fires there.
+    if (target.iri === null && !target.isIndirect) {
+      throw new BadRequestException('No target graph specified: add ?graph=<iri> or ?default');
+    }
     const result = await this.graphStore.deleteGraph(target.iri, this.getPreconditions(req));
     this.applyMutationResponse(res, result.status, result.etag);
   }
