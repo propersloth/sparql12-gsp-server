@@ -3,9 +3,9 @@ import {
   NotFoundException,
   PreconditionFailedException,
 } from '@nestjs/common';
+import { DEFAULT_GRAPH_IRI } from '../../src/database/entities/graph.entity';
 import { GraphStoreService } from '../../src/graph-store/services/graph-store.service';
 import { CANONICAL_MUTATION_FORMAT } from '../../src/graph-store/services/etag.service';
-import { DEFAULT_GRAPH_IRI } from '../../src/graph-store/repositories/graph.repository';
 
 describe('GraphStoreService mutations', () => {
   const triple = {

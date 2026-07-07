@@ -130,13 +130,14 @@ export class GraphStoreService {
       lockIri = validation.normalizedIri!;
     }
 
-    const rows = body.length === 0
-      ? []
-      : await this.rdfService
+    let rows: NormalizedTriple[] = [];
+    if (body.length > 0) {
+      rows = await this.rdfService
         .parseWithReconciliation(body, normalizedContentType, targetIri)
         .catch((error: unknown) => {
           throw this.mapRdfError(error);
         });
+    }
 
     return this.dataSource.transaction(async (manager) => {
       await this.concurrency.lock(manager, lockIri);

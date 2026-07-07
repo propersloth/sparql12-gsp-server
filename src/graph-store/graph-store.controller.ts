@@ -231,7 +231,12 @@ async function readRequestBody(req: RequestLike): Promise<Buffer> {
   if (typeof req.body === 'string') {
     return Buffer.from(req.body);
   }
-  if (req.body !== undefined && req.body !== null && Object.keys(req.body as object).length > 0) {
+  if (
+    req.body !== undefined
+    && req.body !== null
+    && typeof req.body === 'object'
+    && Object.keys(req.body).length > 0
+  ) {
     return Buffer.from(JSON.stringify(req.body));
   }
 
