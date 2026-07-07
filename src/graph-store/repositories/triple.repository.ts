@@ -16,7 +16,7 @@ export class TripleRepository {
 
   async findByGraphId(graphId: string): Promise<Triple[]> {
     return this.repo.createQueryBuilder('t')
-      .select(['t.id', 't.subject', 't.subjectType', 't.predicate', 't.object', 't.objectType', 't.langTag', 't.datatype'])
+      .select(['t.id', 't.graphId', 't.subject', 't.subjectType', 't.predicate', 't.object', 't.objectType', 't.langTag', 't.datatype'])
       .where('t.graph_id = :graphId', { graphId })
       .getMany();
   }
@@ -25,7 +25,7 @@ export class TripleRepository {
   // they reuse the transaction's connection instead of drawing a second one.
   async findByGraphIdInTxn(m: EntityManager, graphId: string): Promise<Triple[]> {
     return m.createQueryBuilder(Triple, 't')
-      .select(['t.id', 't.subject', 't.subjectType', 't.predicate', 't.object', 't.objectType', 't.langTag', 't.datatype'])
+      .select(['t.id', 't.graphId', 't.subject', 't.subjectType', 't.predicate', 't.object', 't.objectType', 't.langTag', 't.datatype'])
       .where('t.graph_id = :graphId', { graphId })
       .getMany();
   }
@@ -37,44 +37,30 @@ export class TripleRepository {
    */
   findByGraphIdStream(graphId: string, batchSize = 1000): Readable {
     const self = this;
-    let lastSeenId: string | null = null;
-    let done = false;
 
-    return new Readable({
-      objectMode: true,
-      async read() {
-        if (done) {
-          this.push(null);
-          return;
-        }
+    return Readable.from(
+      (async function* () {
+        let lastSeenId: string | null = null;
 
-        try {
+        while (true) {
           const batch = await self.repo.find({
             where: lastSeenId === null ? { graphId } : { graphId, id: MoreThan(lastSeenId) },
             take: batchSize,
             order: { id: 'ASC' as const },
           });
 
-          if (batch.length === 0) {
-            done = true;
-            this.push(null);
-            return;
-          }
+          if (batch.length === 0) return;
 
           for (const row of batch) {
-            this.push(row);
+            yield row;
           }
 
           lastSeenId = batch[batch.length - 1].id;
-          if (batch.length < batchSize) {
-            done = true;
-            this.push(null);
-          }
-        } catch (error) {
-          this.destroy(error as Error);
+          if (batch.length < batchSize) return;
         }
-      },
-    });
+      })(),
+      { objectMode: true },
+    );
   }
 
   async insert(graphId: string, triples: NormalizedTriple[]): Promise<void> {

@@ -66,6 +66,7 @@ describe('TripleRepository', () => {
       expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('t');
       expect(mockRepo.createQueryBuilder('t').select).toHaveBeenCalledWith([
         't.id',
+        't.graphId',
         't.subject',
         't.subjectType',
         't.predicate',
@@ -129,6 +130,7 @@ describe('TripleRepository', () => {
 
       repository.findByGraphIdStream('uuid-123', 1)
         .on('data', (row) => rows.push(row))
+        .on('error', done)
         .on('end', () => {
           try {
             expect(rows).toHaveLength(1);
