@@ -18,6 +18,10 @@ import { ETagService } from '../../src/graph-store/services/etag.service';
 import { GraphRoutingService } from '../../src/graph-store/services/graph-routing.service';
 import { getGraph, putGraph } from '../helpers/request.helper';
 
+const { Test: SupertestTest } = require('supertest') as {
+  Test: new (app: unknown, method: string, path: string) => PromiseLike<any>;
+};
+
 // ── Stateful in-memory store ──────────────────────────────────────────────────
 // Allows tests that PUT/POST and then read back to work without a real DB.
 
@@ -98,6 +102,8 @@ const graphStore = {
 describe('GraphStoreController routing', () => {
   let app: INestApplication;
 
+  const rawRequest = (method: string, path: string) => new SupertestTest(app.getHttpServer(), method, path);
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [GraphStoreController],
@@ -175,19 +181,11 @@ describe('GraphStoreController routing', () => {
 
     it('an unregistered verb on /graph/{iri} → 405 with Allow header', async () => {
       await putGraph(app, 'http://ex.org/405-test', '@prefix ex:<http://ex.org/>. ex:s ex:p ex:o .');
-      // TRACE has no handler on /graph/:iri in either resource shape.
-      const r = await request(app.getHttpServer())
-        .trace(`/graph/${encodeURIComponent('http://ex.org/405-test')}`)
-        .catch(() => request(app.getHttpServer())
-          .options(`/graph/${encodeURIComponent('http://ex.org/405-test')}`));
-      // Fallback path above exists only because some HTTP clients refuse to send
-      // TRACE; if the environment supports it, the primary assertion applies:
-      if (r.status !== 204) {
-        expect(r.status).toBe(405);
-        expect(r.headers.allow).toBeDefined();
-        expect(r.headers.allow).toContain('GET');
-        expect(r.headers.allow).toContain('POST');
-      }
+      const r = await rawRequest('TRACE', `/graph/${encodeURIComponent('http://ex.org/405-test')}`);
+      expect(r.status).toBe(405);
+      expect(r.headers.allow).toBeDefined();
+      expect(r.headers.allow).toContain('GET');
+      expect(r.headers.allow).toContain('POST');
     });
 
     it('v2 (C2 fix): POST /graph/{iri} is now registered — no longer falls through to 405', async () => {
@@ -279,11 +277,9 @@ describe('GraphStoreController routing', () => {
         .post('/graph-store').set('Content-Type', 'text/turtle')
         .send('@prefix ex:<http://ex.org/>. ex:s ex:p ex:o .');
       const path = new URL(mint.headers.location as string).pathname;
-      const r = await request(app.getHttpServer()).trace(path).catch(() => null);
-      if (r) {
-        expect(r.status).toBe(405);
-        expect(r.headers.allow).toBeDefined();
-      }
+      const r = await rawRequest('TRACE', path);
+      expect(r.status).toBe(405);
+      expect(r.headers.allow).toBeDefined();
     });
   });
 
