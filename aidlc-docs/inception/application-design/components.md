@@ -356,7 +356,7 @@ interface ParsedEtag {
 | `merge` | `existing: DatasetCore, incoming: DatasetCore` | `DatasetCore` | RDF merge at DatasetCore level (standardizes bnodes apart) |
 | `mergeNormalized` | `existing: NormalizedTriple[], incoming: NormalizedTriple[]` | `NormalizedTriple[]` | Row-level deduplicating union (bnodes already standardized by ingest) |
 | `parseWithReconciliation` | `data: Buffer, contentType: string, targetIri: string \| null` | `Promise<NormalizedTriple[]>` | Parse + enforce single-graph scope + standardize blank nodes apart |
-| `applyPatch` | `existing: NormalizedTriple[], parsed: SparqlUpdate, targetIri: string` | `Promise<NormalizedTriple[]>` | Apply SPARQL Update AST to existing rows |
+| `applyPatch` | `existing: NormalizedTriple[], parsed: SparqlUpdate, targetIri: string \| null` | `Promise<NormalizedTriple[]>` | Apply SPARQL Update AST to existing rows (`null` = default graph, GSP-010 v4) |
 
 **Blank-node storage strategy:**
 - Blank-node **objects** → `objectType: 'B'`, `object` column stores the genid label **without** `_:` prefix (e.g. `genid-550e8400`). Reconstructed by `triplesToDataset` as `DataFactory.blankNode(label)` → `termType === 'BlankNode'`.
@@ -393,8 +393,8 @@ interface NormalizedTriple {
 |--------|------------|---------|-------------|
 | `validate` | `patch: string` | `ValidationResult` | Validate SPARQL Update syntax (delegates to `sparqljs`) |
 | `parse` | `patch: string` | `ParsedUpdate` | Parse into operations (delegates to `sparqljs`) |
-| `scopeToGraph` | `operations: UpdateOperation[], targetIri: string` | `ValidationResult` | Check graph scope — violation → 422 |
-| `apply` | `existing: NormalizedTriple[], parsed: SparqlUpdate, targetIri: string` | `Promise<NormalizedTriple[]>` | Apply patch (delegates to `RdfService.applyPatch`) |
+| `scopeToGraph` | `operations: UpdateOperation[], targetIri: string \| null` | `ValidationResult` | Check graph scope — violation → 422 (`null` target additionally rejects any `GRAPH` clause) |
+| `apply` | `existing: NormalizedTriple[], parsed: SparqlUpdate, targetIri: string \| null` | `Promise<NormalizedTriple[]>` | Apply patch (delegates to `RdfService.applyPatch`) |
 
 **Type Definitions:**
 
