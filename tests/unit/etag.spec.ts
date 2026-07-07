@@ -61,6 +61,14 @@ describe('ETagService', () => {
     it('throws InvalidEtagException when version is not numeric', () => {
       expect(() => svc.parse('"g.notanumber.turtle"')).toThrow(InvalidEtagException);
     });
+
+    it('throws InvalidEtagException when version is partially numeric', () => {
+      expect(() => svc.parse('"g.42junk.turtle"')).toThrow(InvalidEtagException);
+    });
+
+    it('throws InvalidEtagException when media type has invalid percent-encoding', () => {
+      expect(() => svc.parse('"g.1.application%2Gld%2Bjson"')).toThrow(InvalidEtagException);
+    });
   });
 
   // ------------------------------------------------------------------ compareStrong (reads / If-None-Match)
@@ -131,6 +139,10 @@ describe('ETagService', () => {
 
     it('does NOT accept a lowercase weak ETag (w/) — returns null (case-insensitive)', () => {
       expect(svc.extractFirstEtag('w/"g.1.t"')).toBeNull();
+    });
+
+    it('skips weak ETags and returns first strong ETag from a list', () => {
+      expect(svc.extractFirstEtag('W/"g.1.t", "g.2.t", W/"g.3.t"')).toBe('"g.2.t"');
     });
   });
 

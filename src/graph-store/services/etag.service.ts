@@ -34,9 +34,16 @@ export class ETagService {
       throw new InvalidEtagException(`ETag must have three dot-delimited components: ${raw}`);
     const graphId   = inner.substring(0, first);
     const versionS  = inner.substring(first + 1, second);
-    const version   = parseInt(versionS, 10);
-    if (isNaN(version)) throw new InvalidEtagException(`ETag version not numeric: ${raw}`);
-    const mediaType = decodeURIComponent(inner.substring(second + 1));
+    if (!/^\d+$/.test(versionS)) throw new InvalidEtagException(`ETag version not numeric: ${raw}`);
+    const version = Number(versionS);
+    if (!Number.isSafeInteger(version)) throw new InvalidEtagException(`ETag version out of range: ${raw}`);
+    const encodedMediaType = inner.substring(second + 1);
+    let mediaType: string;
+    try {
+      mediaType = decodeURIComponent(encodedMediaType);
+    } catch {
+      throw new InvalidEtagException(`ETag media type is not valid percent-encoding: ${raw}`);
+    }
     return { graphId, version, mediaType, raw };
   }
 
@@ -60,9 +67,13 @@ export class ETagService {
   extractFirstEtag(header: string): string | null {
     if (!header || !header.trim()) return null;
     if (header.trim() === '*') return '*';
-    // Strip weak ETags — not valid for If-Match (HTTP §13.1.1).
-    if (/W\//i.test(header)) return null;
-    const m = header.match(/"([^"]+)"/);
-    return m ? m[0] : null;
+    const tokens = header.split(',');
+    for (const token of tokens) {
+      const trimmed = token.trim();
+      if (/^W\//i.test(trimmed)) continue;
+      const m = trimmed.match(/^"([^"]+)"$/);
+      if (m) return m[0];
+    }
+    return null;
   }
 }
