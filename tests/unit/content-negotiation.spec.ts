@@ -169,6 +169,11 @@ describe('ContentNegotiationService', () => {
       expect(service.inferContentType(buf)).toBe('application/rdf+xml');
     });
 
+    it('inferContentType does not misclassify malformed N-Triples content', () => {
+      const buf = Buffer.from('<http://ex.org/s> <http://ex.org/p> not-a-valid-object .');
+      expect(service.inferContentType(buf)).toBe('application/rdf+xml');
+    });
+
     it('inferContentType returns application/ld+json for JSON-like content', () => {
       const buf = Buffer.from('{ "not": "rdf" }');
       expect(service.inferContentType(buf)).toBe('application/ld+json');

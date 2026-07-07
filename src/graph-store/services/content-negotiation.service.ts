@@ -23,6 +23,12 @@ export interface ContentTypeValidation {
 
 @Injectable()
 export class ContentNegotiationService {
+  /**
+   * Inspect only the first 512 bytes when inferring a missing Content-Type so
+   * detection stays cheap while still covering the leading syntax markers.
+   */
+  private static readonly CONTENT_DETECTION_BUFFER_SIZE = 512;
+
   private readonly supportedTypes = [
     'text/turtle',
     'application/rdf+xml',
@@ -117,7 +123,9 @@ export class ContentNegotiationService {
   }
 
   inferContentType(body: Buffer): string {
-    const snippet = body.toString('utf-8', 0, 512).trimStart();
+    const snippet = body
+      .toString('utf-8', 0, ContentNegotiationService.CONTENT_DETECTION_BUFFER_SIZE)
+      .trimStart();
     if (snippet.length === 0) return 'application/rdf+xml';
 
     if (snippet.startsWith('@prefix') || snippet.startsWith('@base')) {
@@ -174,6 +182,7 @@ export class ContentNegotiationService {
 
   private looksLikeNTriples(value: string): boolean {
     const line = value.trim();
-    return /^<[^>]+>\s+<[^>]+>\s+.*\.\s*$/s.test(line);
+    return /^(?:<[^>]+>|_:[A-Za-z][A-Za-z0-9]*)\s+<[^>]+>\s+(?:<[^>]+>|_:[A-Za-z][A-Za-z0-9]*|"(?:[^"\\]|\\.)*"(?:@[A-Za-z]+(?:-[A-Za-z0-9]+)*|\^\^<[^>]+>)?)\s*\.\s*$/s
+      .test(line);
   }
 }
