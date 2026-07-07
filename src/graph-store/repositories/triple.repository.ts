@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Readable } from 'stream';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, MoreThan, Repository } from 'typeorm';
 import { Triple } from '../../database/entities/triple.entity';
 import type { NormalizedTriple } from '../../rdf/rdf.service';
 
@@ -30,9 +30,14 @@ export class TripleRepository {
       .getMany();
   }
 
+  /**
+   * Returns a Readable immediately and fetches rows in ascending id order using
+   * a primary-key cursor, keeping memory bounded for large graphs.
+   * Use findByGraphId() when the full result can be materialized eagerly.
+   */
   findByGraphIdStream(graphId: string, batchSize = 1000): Readable {
     const self = this;
-    let offset = 0;
+    let lastSeenId: string | null = null;
     let done = false;
 
     return new Readable({
@@ -45,10 +50,9 @@ export class TripleRepository {
 
         try {
           const batch = await self.repo.find({
-            where: { graphId },
-            skip: offset,
+            where: lastSeenId === null ? { graphId } : { graphId, id: MoreThan(lastSeenId) },
             take: batchSize,
-            order: { id: 'ASC' },
+            order: { id: 'ASC' as const },
           });
 
           if (batch.length === 0) {
@@ -61,7 +65,7 @@ export class TripleRepository {
             this.push(row);
           }
 
-          offset += batch.length;
+          lastSeenId = batch[batch.length - 1].id;
           if (batch.length < batchSize) {
             done = true;
             this.push(null);

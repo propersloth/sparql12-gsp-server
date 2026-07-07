@@ -3,6 +3,7 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Readable } from 'stream';
+import { MoreThan } from 'typeorm';
 import { Triple } from '../../../src/database/entities/triple.entity';
 import { TripleRepository, type NormalizedTriple } from '../../../src/graph-store/repositories/triple.repository';
 
@@ -63,6 +64,20 @@ describe('TripleRepository', () => {
 
       expect(result).toHaveLength(1);
       expect(mockRepo.createQueryBuilder).toHaveBeenCalledWith('t');
+      expect(mockRepo.createQueryBuilder('t').select).toHaveBeenCalledWith([
+        't.id',
+        't.subject',
+        't.subjectType',
+        't.predicate',
+        't.object',
+        't.objectType',
+        't.langTag',
+        't.datatype',
+      ]);
+      expect(mockRepo.createQueryBuilder('t').where).toHaveBeenCalledWith(
+        't.graph_id = :graphId',
+        { graphId: 'g1' },
+      );
     });
 
     it('TC-GET-02: returns empty array when no triples', async () => {
@@ -112,17 +127,25 @@ describe('TripleRepository', () => {
 
       const rows: Triple[] = [];
 
-      repository.findByGraphIdStream('uuid-123')
+      repository.findByGraphIdStream('uuid-123', 1)
         .on('data', (row) => rows.push(row))
         .on('end', () => {
-          expect(rows).toHaveLength(1);
-          expect(mockRepo.find).toHaveBeenNthCalledWith(1, {
-            where: { graphId: 'uuid-123' },
-            skip: 0,
-            take: 1000,
-            order: { id: 'ASC' },
-          });
-          done();
+          try {
+            expect(rows).toHaveLength(1);
+            expect(mockRepo.find).toHaveBeenNthCalledWith(1, {
+              where: { graphId: 'uuid-123' },
+              take: 1,
+              order: { id: 'ASC' },
+            });
+            expect(mockRepo.find.mock.calls[1][0]).toEqual({
+              where: { graphId: 'uuid-123', id: MoreThan(1) },
+              take: 1,
+              order: { id: 'ASC' },
+            });
+            done();
+          } catch (error) {
+            done(error);
+          }
         });
     });
   });
@@ -161,7 +184,7 @@ describe('TripleRepository', () => {
       expect(insertQb.execute).toHaveBeenCalled();
     });
 
-    it('no-op for empty array', async () => {
+    it('returns without executing a query for an empty array', async () => {
       await repository.insert('g1', []);
       expect(mockRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
