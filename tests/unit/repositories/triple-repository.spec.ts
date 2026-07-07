@@ -50,7 +50,7 @@ describe('TripleRepository', () => {
     it('TC-GET-01: returns triples for an existing graph', async () => {
       mockRepo.createQueryBuilder('t').getMany.mockResolvedValue([
         {
-          id: 1,
+          id: '1',
           graphId: 'g1',
           subject: 'http://ex.org/s',
           subjectType: 'U',
@@ -115,7 +115,7 @@ describe('TripleRepository', () => {
       mockRepo.find
         .mockResolvedValueOnce([
           {
-            id: 1,
+            id: '1',
             subject: 'http://ex.org/s',
             subjectType: 'U',
             predicate: 'http://ex.org/p',
@@ -138,7 +138,7 @@ describe('TripleRepository', () => {
               order: { id: 'ASC' },
             });
             expect(mockRepo.find.mock.calls[1][0]).toEqual({
-              where: { graphId: 'uuid-123', id: MoreThan(1) },
+              where: { graphId: 'uuid-123', id: MoreThan('1') },
               take: 1,
               order: { id: 'ASC' },
             });
@@ -275,7 +275,7 @@ describe('TripleRepository', () => {
       const qb = makeSelectQueryBuilder();
       qb.getMany.mockResolvedValue([
         {
-          id: 1,
+          id: '1',
           subject: 'http://ex.org/s',
           subjectType: 'U',
           predicate: 'http://ex.org/p',
