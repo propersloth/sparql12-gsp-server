@@ -361,7 +361,7 @@ await this.dataSource.transaction(async (manager) => {
 
 ### 7.2 RDF Merge Implementation
 
-Blank nodes are standardized apart on ingest. By the time `mergeNormalized` is called, blank-node subjects and objects have already been rewritten to unique `genid-{uuid}` labels plus their `subjectType` / `objectType` discriminators. The merge is therefore a pure deduplicating set-union.
+Blank nodes are standardized apart on ingest. `parseWithReconciliation` uses one shared blank-node map per parse call, so the same blank node keeps the same `genid-{uuid}` label even if it appears once as a subject and once as an object. By the time `mergeNormalized` is called, blank-node subjects and objects have already been rewritten to those `genid-{uuid}` labels (without any `_:` prefix) plus their `subjectType` / `objectType` discriminators. `triplesToDataset` reconstructs both positions with `DataFactory.blankNode(label)`, so round-tripped datasets preserve `termType === 'BlankNode'`.
 
 ```typescript
 // On ingest (parseWithReconciliation):
