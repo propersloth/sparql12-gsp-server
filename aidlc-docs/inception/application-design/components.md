@@ -341,7 +341,7 @@ interface ParsedEtag {
 | Media type | Parse | Serialize |
 |-----------|-------|-----------|
 | `text/turtle`, `application/trig`, `application/n-triples`, `application/n-quads` | N3.js | N3.js |
-| `application/rdf+xml` | rdfxml-streaming-parser | TBD (spike required) |
+| `application/rdf+xml` | rdfxml-streaming-parser | in-house `RdfXmlSerializer` |
 | `application/ld+json` | jsonld-streaming-parser | jsonld |
 
 **Public Methods:**
@@ -355,12 +355,13 @@ interface ParsedEtag {
 | `triplesToDataset` | `triples: NormalizedTriple[], graphIri: string \| null` | `DatasetCore` | Reconstruct DatasetCore from persisted rows |
 | `merge` | `existing: DatasetCore, incoming: DatasetCore` | `DatasetCore` | RDF merge at DatasetCore level (standardizes bnodes apart) |
 | `mergeNormalized` | `existing: NormalizedTriple[], incoming: NormalizedTriple[]` | `NormalizedTriple[]` | Row-level deduplicating union (bnodes already standardized by ingest) |
-| `parseWithReconciliation` | `data: Buffer, contentType: string, targetIri: string \| null` | `Promise<NormalizedTriple[]>` | Parse + enforce single-graph scope + skolemize |
+| `parseWithReconciliation` | `data: Buffer, contentType: string, targetIri: string \| null` | `Promise<NormalizedTriple[]>` | Parse + enforce single-graph scope + standardize blank nodes apart |
 | `applyPatch` | `existing: NormalizedTriple[], parsed: SparqlUpdate, targetIri: string` | `Promise<NormalizedTriple[]>` | Apply SPARQL Update AST to existing rows |
 
-**Skolemization strategy:**
+**Blank-node storage strategy:**
 - Blank-node **objects** → `objectType: 'B'`, `object` column stores the genid label **without** `_:` prefix (e.g. `genid-550e8400`). Reconstructed by `triplesToDataset` as `DataFactory.blankNode(label)` → `termType === 'BlankNode'`.
-- Blank-node **subjects** → Skolem IRI (`{GSP_BASE_URL}/.well-known/genid/{uuid}`). Stored as a regular IRI in `subject TEXT`. Rounds-trip as a named node (v1 constraint).
+- Blank-node **subjects** → `subjectType: 'B'`, `subject` column stores the genid label **without** `_:` prefix (same convention as objects). Reconstructed by `triplesToDataset` as `DataFactory.blankNode(label)`.
+- RDF/XML serialization uses the in-house `RdfXmlSerializer`. If a graph cannot be represented in RDF/XML, serialization raises `RdfXmlSerializationException` rather than dropping data.
 
 **Type Definitions:**
 ```typescript
@@ -368,7 +369,8 @@ import { DatasetCore } from '@rdfjs/types';
 import { SparqlUpdate } from 'sparqljs';
 
 interface NormalizedTriple {
-  subject:    string;   // IRI or Skolem IRI
+  subject:    string;   // IRI (U) or genid label without '_:' (B)
+  subjectType:'U' | 'B';
   predicate:  string;
   object:     string;   // IRI (U), literal (L), or genid label without '_:' (B)
   objectType: 'U' | 'L' | 'B';

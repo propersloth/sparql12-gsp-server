@@ -19,7 +19,7 @@ export class Triple {
   @Column({ type: 'text' })
   subject!: string;
 
-  @Column({ name: 'subject_type', type: 'char', length: 1 })
+  @Column({ name: 'subject_type', type: 'char', length: 1, default: 'U' })
   subjectType!: 'U' | 'B';
 
   @Column({ type: 'text' })

@@ -35,7 +35,7 @@
 ### UW-02 (RDF Service)
 - **Depends on:** UW-01 (uses database entities and `NormalizedTriple` type)
 - **Required by:** UW-05 (core operations need RDF)
-- **Note:** Multi-library: N3.js, rdfxml-streaming-parser, jsonld/jsonld-streaming-parser, sparqljs. An RDF/XML serializer spike must be completed before this unit is signed off.
+- **Note:** Multi-library: N3.js, rdfxml-streaming-parser, in-house `RdfXmlSerializer`, jsonld/jsonld-streaming-parser, sparqljs. GSP-005 records Branch B for RDF/XML serialization because `@rdfjs/serializer-rdfxml` is unavailable on npm.
 
 ### UW-03 (Repositories)
 - **Depends on:** UW-01 (entities defined)

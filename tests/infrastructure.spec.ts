@@ -58,6 +58,8 @@ describe('test fixtures', () => {
     'fixtures/adversarial/malformed-update.sparql',
     'fixtures/adversarial/large-graph.ttl',
     'fixtures/adversarial/non-ascii-iri.ttl',
+    'fixtures/adversarial/unsplittable-predicate.ttl',
+    'fixtures/adversarial/xml-illegal-literal.ttl',
   ];
 
   it.each(fixtures)('loads %s', async (fixturePath) => {
