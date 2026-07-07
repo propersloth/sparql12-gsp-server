@@ -153,7 +153,7 @@ Current automated coverage includes:
 > `npm test` intentionally excludes `tests/unit/database/schema.spec.ts` because that suite requires a reachable PostgreSQL instance.
 > To run the schema suite explicitly:
 > ```bash
-> TEST_DATABASE_URL=******localhost:5432/gsp_test npm run test:schema
+> TEST_DATABASE_URL=postgresql://<username>:<password>@localhost:5432/gsp_test npm run test:schema
 > ```
 
 <details>
