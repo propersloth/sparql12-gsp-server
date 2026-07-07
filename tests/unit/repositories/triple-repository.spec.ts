@@ -163,7 +163,7 @@ describe('TripleRepository', () => {
 
     it('no-op for empty array', async () => {
       await repository.insert('g1', []);
-      expect(mockRepo.createQueryBuilder).not.toHaveBeenCalledWith();
+      expect(mockRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
 
     it('stores type-B object as a genid label', async () => {
