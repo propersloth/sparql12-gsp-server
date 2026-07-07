@@ -61,7 +61,7 @@ export class GraphRepository {
       [id],
     );
     if (rows.length === 0) {
-      throw new Error(`Graph not found for version increment: ${id}`);
+      throw new Error(`Data consistency error: graph ${id} not found during version increment`);
     }
     return Number(rows[0].version);
   }
