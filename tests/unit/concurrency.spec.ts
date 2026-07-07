@@ -23,10 +23,10 @@ describe('ConcurrencyService', () => {
       expect(svc.hashGraphId('graph-a')).not.toBe(svc.hashGraphId('graph-b'));
     });
 
-    it('produces a positive safe integer within 48-bit range (M-02 fix)', () => {
+    it('produces a non-negative safe integer within 48-bit range (M-02 fix)', () => {
       const h = svc.hashGraphId('any-id');
       expect(Number.isSafeInteger(h)).toBe(true);
-      expect(h).toBeGreaterThan(0);
+      expect(h).toBeGreaterThanOrEqual(0);
       // Must fit in 48 bits (max 2^48 - 1 = 281474976710655)
       expect(h).toBeLessThanOrEqual(281474976710655);
     });
@@ -94,12 +94,13 @@ describe('ConcurrencyService', () => {
     it('throws InvalidEtagException on fewer than three components', () => {
       expect(() => svc.compareVersions('"only-two.parts"', 'any', 0)).toThrow(InvalidEtagException);
     });
+
+    it('throws InvalidEtagException on partially-numeric version (e.g. "42junk")', () => {
+      expect(() => svc.compareVersions('"abc123.42junk.text%2Fturtle"', 'abc123', 42)).toThrow(InvalidEtagException);
+    });
   });
 
   describe('TC-CC-05: real concurrent serialization', () => {
-    it('is verified end-to-end in tests/integration/compliance.spec.ts (TC-COMP-09)', () => {
-      // Unit mocks cannot prove advisory-lock semantics across real DB connections.
-      expect(true).toBe(true);
-    });
+    it.todo('is verified end-to-end in an integration test (TC-COMP-09); unit mocks cannot prove advisory-lock semantics across real DB connections');
   });
 });

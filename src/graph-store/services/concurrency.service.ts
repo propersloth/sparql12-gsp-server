@@ -30,7 +30,7 @@ export class ConcurrencyService {
     const low  = buf.readUInt16BE(4);  // 16 bits
     // M-02 fix: drop >>> 0. JS numbers hold 53-bit integers safely;
     // high * 65536 + low is a 48-bit value well within Number.MAX_SAFE_INTEGER.
-    return high * 0x10000 + low;       // 48-bit positive integer (no Uint32 truncation)
+    return high * 0x10000 + low;       // 48-bit non-negative integer (no Uint32 truncation)
   }
 
   private parseEtag(etag: string): { graphId: string; version: number; mediaType: string } {
@@ -43,9 +43,11 @@ export class ConcurrencyService {
       throw new InvalidEtagException(`ETag must have three dot-delimited components: ${etag}`);
     const graphId  = inner.substring(0, first);
     const versionS = inner.substring(first + 1, second);
-    const version  = parseInt(versionS, 10);
-    if (isNaN(version))
+    if (!/^\d+$/.test(versionS))
       throw new InvalidEtagException(`ETag version is not numeric: ${etag}`);
+    const version = parseInt(versionS, 10);
+    if (!Number.isSafeInteger(version))
+      throw new InvalidEtagException(`ETag version exceeds safe integer range: ${etag}`);
     const mediaType = inner.substring(second + 1); // percent-encoded; compareVersions ignores it
     return { graphId, version, mediaType };
   }
