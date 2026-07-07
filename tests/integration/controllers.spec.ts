@@ -34,12 +34,8 @@ function nextEtag(): string {
   return `"v${++versionCounter}"`;
 }
 
-function mintedGraphIri(uuid: string): string {
-  return buildMintedGraphIri(baseUrl, uuid);
-}
-
 const graphStore = {
-  mintedGraphIri: jest.fn(mintedGraphIri),
+  mintedGraphIri: jest.fn((uuid: string) => buildMintedGraphIri(baseUrl, uuid)),
 
   getGraph: jest.fn(async (iri: string | null, _accept?: string, _ifNoneMatch?: string) => {
     const key = iri ?? '__default__';
@@ -65,7 +61,7 @@ const graphStore = {
   postGraph: jest.fn(async (body: Buffer, _contentType: string, targetIri: string | null | undefined) => {
     if (targetIri === undefined) {
       const uuid = randomUUID();
-      const location = mintedGraphIri(uuid);
+      const location = buildMintedGraphIri(baseUrl, uuid);
       const etag = nextEtag();
       store.set(location, { content: body.toString(), etag });
       return { status: 201 as const, location, etag };
