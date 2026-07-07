@@ -53,13 +53,30 @@ export class GraphRepository {
     return m.findOne(Graph, { where: { iri } });
   }
 
+  async findByIriOrDefaultInTxn(m: EntityManager, iri: string | null): Promise<Graph | null> {
+    if (iri === null) {
+      const g = await m.findOne(Graph, { where: { isDefault: true } });
+      if (!g) throw new Error('Default graph row missing — run migrations (GSP-002)');
+      return g;
+    }
+    return this.findByIriInTxn(m, iri);
+  }
+
   async createInTxn(m: EntityManager, iri: string): Promise<Graph> {
     const g = m.create(Graph, { iri, isDefault: false });
     return m.save(Graph, g);
   }
 
   async deleteInTxn(m: EntityManager, id: string): Promise<void> {
-    await m.delete(Graph, { id });
+    const result = await m.delete(Graph, { id, isDefault: false });
+    if ((result.affected ?? 0) > 0) {
+      return;
+    }
+
+    const graph = await m.findOne(Graph, { where: { id } });
+    if (graph?.isDefault) {
+      throw new Error('Default graph row cannot be deleted');
+    }
   }
 
   async incrementVersionInTxn(m: EntityManager, id: string): Promise<number> {
