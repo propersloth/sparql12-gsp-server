@@ -195,7 +195,8 @@ describe('GraphRoutingService', () => {
     it('should handle system namespace', () => {
       const result = service.validateIri('http://www.w3.org/1999/02/22-rdf-syntax-ns#');
 
-      expect(typeof result.valid).toBe('boolean');
+      expect(result.valid).toBe(true);
+      expect(result.normalizedIri).toBe('http://www.w3.org/1999/02/22-rdf-syntax-ns#');
     });
   });
 });

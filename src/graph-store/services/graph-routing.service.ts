@@ -15,6 +15,12 @@ export interface ValidationResult {
 
 @Injectable()
 export class GraphRoutingService {
+  /**
+   * Resolves direct graph IRIs, indirect query-based graph IRIs, and `?default`.
+   * When none of those identifiers are present, this falls back to the default
+   * graph so callers can treat `/graph-store` without selection parameters as
+   * the graph-store endpoint.
+   */
   resolveTarget(request: {
     path?: string;
     query?: Record<string, unknown>;
@@ -30,7 +36,7 @@ export class GraphRoutingService {
       };
     }
 
-    if (request.query && Object.prototype.hasOwnProperty.call(request.query, 'default')) {
+    if (request.query && Object.hasOwn(request.query, 'default')) {
       return {
         iri: null,
         isDefault: true,
