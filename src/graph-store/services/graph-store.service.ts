@@ -37,7 +37,10 @@ export class GraphStoreService {
 
     const etag = this.etagService.generate(graph.id, graph.version, match.type);
 
-    if (ifNoneMatch && ifNoneMatch !== '*') {
+    if (ifNoneMatch) {
+      if (ifNoneMatch === '*') {
+        return { content: '', contentType: match.type, etag, status: 304 };
+      }
       try {
         if (this.etagService.compareStrong(ifNoneMatch, graph.id, graph.version, match.type)) {
           return { content: '', contentType: match.type, etag, status: 304 };

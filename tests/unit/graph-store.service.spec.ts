@@ -1,11 +1,12 @@
 import { NotAcceptableException, NotFoundException } from '@nestjs/common';
+import { DEFAULT_GRAPH_IRI } from '../../src/database/entities/graph.entity';
 import type { Graph } from '../../src/database/entities/graph.entity';
 import { RdfXmlSerializationException } from '../../src/rdf/rdf.exceptions';
 import type { RdfService } from '../../src/rdf/rdf.service';
 import { GraphStoreService } from '../../src/graph-store/services/graph-store.service';
 
 describe('GraphStoreService', () => {
-  const baseGraph: Pick<Graph, 'id' | 'iri' | 'version' | 'isDefault'> = {
+  const mockNamedGraph: Pick<Graph, 'id' | 'iri' | 'version' | 'isDefault'> = {
     id: 'g-1',
     iri: 'http://ex.org/g',
     version: 7,
@@ -22,14 +23,20 @@ describe('GraphStoreService', () => {
   }) => {
     const graphRepository = {
       findByIriOrDefault:
-        overrides?.findByIriOrDefault ?? jest.fn(async () => ({ ...baseGraph })),
+        overrides?.findByIriOrDefault ?? jest.fn(async () => ({ ...mockNamedGraph })),
     };
     const tripleRepository = {
       findByGraphId: overrides?.findByGraphId ?? jest.fn(async () => []),
     };
     const contentNegotiation = {
       parseAccept: jest.fn((a?: string) => a),
-      getSupportedTypes: jest.fn(() => ['text/turtle', 'application/trig', 'application/rdf+xml']),
+      getSupportedTypes: jest.fn(() => [
+        'text/turtle',
+        'application/trig',
+        'application/n-quads',
+        'application/ld+json',
+        'application/rdf+xml',
+      ]),
       getBestMatch:
         overrides?.getBestMatch ?? jest.fn(() => ({ type: 'text/turtle', quality: 1 })),
     };
@@ -74,21 +81,24 @@ describe('GraphStoreService', () => {
     expect((rdfService as any).serializeToDataset).not.toHaveBeenCalled();
   });
 
-  it('uses serializeToDataset() for quad formats with null label for default graph', async () => {
-    const { service, rdfService } = makeService({
-      findByIriOrDefault: jest.fn(async () => ({ ...baseGraph, iri: 'urn:x-arq:DefaultGraph', isDefault: true })),
-      getBestMatch: jest.fn(() => ({ type: 'application/trig', quality: 1 })),
-    });
+  it.each(['application/trig', 'application/n-quads', 'application/ld+json'])(
+    'uses serializeToDataset() for quad format %s with null label for default graph',
+    async (mediaType) => {
+      const { service, rdfService } = makeService({
+        findByIriOrDefault: jest.fn(async () => ({ ...mockNamedGraph, iri: DEFAULT_GRAPH_IRI, isDefault: true })),
+        getBestMatch: jest.fn(() => ({ type: mediaType, quality: 1 })),
+      });
 
-    await service.getGraph(null, 'application/trig');
+      await service.getGraph(null, mediaType);
 
-    expect((rdfService as any).triplesToDataset).toHaveBeenCalledWith([], null);
-    expect((rdfService as any).serializeToDataset).toHaveBeenCalledWith(
-      expect.anything(),
-      'application/trig',
-      null,
-    );
-  });
+      expect((rdfService as any).triplesToDataset).toHaveBeenCalledWith([], null);
+      expect((rdfService as any).serializeToDataset).toHaveBeenCalledWith(
+        expect.anything(),
+        mediaType,
+        null,
+      );
+    },
+  );
 
   it('returns 304 only when compareStrong matches', async () => {
     const { service, tripleRepository } = makeService({
@@ -102,6 +112,16 @@ describe('GraphStoreService', () => {
     expect(tripleRepository.findByGraphId).not.toHaveBeenCalled();
   });
 
+  it('returns 304 for If-None-Match wildcard when graph exists', async () => {
+    const { service, etagService, tripleRepository } = makeService();
+
+    const result = await service.getGraph('http://ex.org/g', 'text/turtle', '*');
+
+    expect(result.status).toBe(304);
+    expect(etagService.compareStrong).not.toHaveBeenCalled();
+    expect(tripleRepository.findByGraphId).not.toHaveBeenCalled();
+  });
+
   it('ignores malformed If-None-Match and serves 200', async () => {
     const { service, etagService } = makeService({
       compareStrong: jest.fn(() => {
@@ -112,6 +132,7 @@ describe('GraphStoreService', () => {
     const result = await service.getGraph('http://ex.org/g', 'text/turtle', 'bad');
 
     expect(result.status).toBe(200);
+    expect(result.content).toBe('ttl');
     expect(etagService.compareStrong).toHaveBeenCalled();
   });
 
