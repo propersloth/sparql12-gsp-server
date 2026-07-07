@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CommonModule } from './common/common.module';
 import { createTypeOrmOptions } from './database/database.config';
 import { Graph } from './database/entities/graph.entity';
 import { Triple } from './database/entities/triple.entity';
@@ -51,7 +52,7 @@ const graphStoreProviders =
       ];
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), ...databaseImports, ...graphStoreImports],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), CommonModule, ...databaseImports, ...graphStoreImports],
   controllers: [HealthController, ...graphStoreControllers],
   providers: [RdfServiceImpl, ContentNegotiationService, ...graphStoreProviders],
 })
