@@ -152,16 +152,18 @@ describe('GraphRepository', () => {
       expect(mockManager.save).toHaveBeenCalled();
     });
 
-    it('deleteInTxn delegates to manager.delete', async () => {
-      const mockManager = { delete: jest.fn().mockResolvedValue({ affected: 1 }), findOne: jest.fn() } as any;
+    it('deleteInTxn deletes named graphs via a guarded SQL query', async () => {
+      const mockManager = { query: jest.fn().mockResolvedValue([{ is_default: false, deleted: 1 }]) } as any;
       await repo.deleteInTxn(mockManager, 'uuid-123');
-      expect(mockManager.delete).toHaveBeenCalledWith(Graph, { id: 'uuid-123', isDefault: false });
+      expect(mockManager.query).toHaveBeenCalledWith(
+        expect.stringContaining('DELETE FROM graphs'),
+        ['uuid-123'],
+      );
     });
 
     it('deleteInTxn rejects deleting the default graph row', async () => {
       const mockManager = {
-        delete: jest.fn().mockResolvedValue({ affected: 0 }),
-        findOne: jest.fn().mockResolvedValue(makeGraph({ id: 'uuid-default', isDefault: true })),
+        query: jest.fn().mockResolvedValue([{ is_default: true, deleted: 0 }]),
       } as any;
       await expect(repo.deleteInTxn(mockManager, 'uuid-default')).rejects.toThrow(
         'Default graph row cannot be deleted',

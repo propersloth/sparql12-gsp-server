@@ -169,14 +169,8 @@ export class GraphStoreController {
   ): Promise<void> {
     const target = this.routing.resolveTarget(req);
     const targetIri = hasExplicitPostTarget(req) ? target.iri : undefined;
-    const body = files.length > 0 ? Buffer.alloc(0) : await readRequestBody(req);
-    const parts: MultipartPart[] | undefined = files.length > 0
-      ? files.map((file) => ({
-        buffer: file.buffer,
-        contentType: file.mimetype,
-        filename: file.originalname,
-      }))
-      : undefined;
+    const parts = toMultipartParts(files);
+    const body = parts ? Buffer.alloc(0) : await readRequestBody(req);
 
     const result = await this.graphStore.postGraph(
       body,
@@ -222,6 +216,18 @@ function hasExplicitPostTarget(req: RequestLike): boolean {
   return typeof req.params?.iri === 'string'
     || Object.hasOwn(req.query ?? {}, 'graph')
     || Object.hasOwn(req.query ?? {}, 'default');
+}
+
+function toMultipartParts(files: UploadedFileLike[]): MultipartPart[] | undefined {
+  if (files.length === 0) {
+    return undefined;
+  }
+
+  return files.map((file) => ({
+    buffer: file.buffer,
+    contentType: file.mimetype,
+    filename: file.originalname,
+  }));
 }
 
 async function readRequestBody(req: RequestLike): Promise<Buffer> {

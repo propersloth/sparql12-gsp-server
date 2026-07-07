@@ -68,13 +68,28 @@ export class GraphRepository {
   }
 
   async deleteInTxn(m: EntityManager, id: string): Promise<void> {
-    const result = await m.delete(Graph, { id, isDefault: false });
-    if ((result.affected ?? 0) > 0) {
+    const rows: Array<{ is_default: boolean | null; deleted: number }> = await m.query(
+      `
+        WITH target AS (
+          SELECT is_default FROM graphs WHERE id = $1
+        ),
+        deleted AS (
+          DELETE FROM graphs
+          WHERE id = $1 AND is_default = false
+          RETURNING id
+        )
+        SELECT
+          (SELECT is_default FROM target) AS is_default,
+          (SELECT COUNT(*)::int FROM deleted) AS deleted
+      `,
+      [id],
+    );
+
+    if ((rows[0]?.deleted ?? 0) > 0) {
       return;
     }
 
-    const graph = await m.findOne(Graph, { where: { id } });
-    if (graph?.isDefault) {
+    if (rows[0]?.is_default === true) {
       throw new Error('Default graph row cannot be deleted');
     }
   }
