@@ -17,9 +17,12 @@ export interface ValidationResult {
 export class GraphRoutingService {
   /**
    * Resolves direct graph IRIs, indirect query-based graph IRIs, and `?default`.
+   * Query-based `?default` takes precedence over `?graph`, matching the Graph
+   * Store Protocol rule that default-graph selection is explicit.
    * When none of those identifiers are present, this falls back to the default
    * graph so callers can treat `/graph-store` without selection parameters as
-   * the graph-store endpoint.
+   * the graph-store endpoint. That fallback is not considered indirect routing
+   * because it does not select a graph through a query parameter.
    */
   resolveTarget(request: {
     path?: string;
@@ -89,8 +92,12 @@ export class GraphRoutingService {
   }
 
   private firstString(value: unknown): string | null {
-    if (typeof value === 'string' && value.length > 0) return value;
-    if (Array.isArray(value)) return this.firstString(value[0]);
+    const queue = [value];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (typeof current === 'string' && current.length > 0) return current;
+      if (Array.isArray(current)) queue.unshift(...current);
+    }
     return null;
   }
 
