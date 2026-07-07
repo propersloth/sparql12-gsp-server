@@ -21,29 +21,41 @@ export class GspExceptionFilter implements ExceptionFilter {
     let error = 'InternalServerError';
 
     if (exception.name === 'ParseException') {
-      status = HttpStatus.BAD_REQUEST; error = 'ParseException';
+      status = HttpStatus.BAD_REQUEST;
+      error = 'ParseException';
     } else if (exception.name === 'InvalidIriException') {
-      status = HttpStatus.BAD_REQUEST; error = 'InvalidIriException';
+      status = HttpStatus.BAD_REQUEST;
+      error = 'InvalidIriException';
     } else if (exception.name === 'DatasetMismatchException') {
-      status = HttpStatus.BAD_REQUEST; error = 'DatasetMismatchException';
+      status = HttpStatus.BAD_REQUEST;
+      error = 'DatasetMismatchException';
     } else if (exception.name === 'InvalidEtagException') {
-      status = HttpStatus.BAD_REQUEST; error = 'InvalidEtagException';
+      status = HttpStatus.BAD_REQUEST;
+      error = 'InvalidEtagException';
     } else if (exception.name === 'GraphNotFoundException') {
-      status = HttpStatus.NOT_FOUND; error = 'GraphNotFoundException';
+      status = HttpStatus.NOT_FOUND;
+      error = 'GraphNotFoundException';
     } else if (exception.name === 'UnauthorizedException') {
-      status = HttpStatus.UNAUTHORIZED; error = 'UnauthorizedException';
+      status = HttpStatus.UNAUTHORIZED;
+      error = 'UnauthorizedException';
     } else if (exception.name === 'ForbiddenException') {
-      status = HttpStatus.FORBIDDEN; error = 'ForbiddenException';
+      status = HttpStatus.FORBIDDEN;
+      error = 'ForbiddenException';
     } else if (exception.name === 'PreconditionFailedException') {
-      status = HttpStatus.PRECONDITION_FAILED; error = 'PreconditionFailedException';
+      status = HttpStatus.PRECONDITION_FAILED;
+      error = 'PreconditionFailedException';
     } else if (exception.name === 'PreconditionRequiredException') {
-      status = 428; error = 'PreconditionRequiredException';
+      status = 428;
+      error = 'PreconditionRequiredException';
     } else if (exception.name === 'UnsupportedMediaTypeException') {
-      status = HttpStatus.UNSUPPORTED_MEDIA_TYPE; error = 'UnsupportedMediaTypeException';
+      status = HttpStatus.UNSUPPORTED_MEDIA_TYPE;
+      error = 'UnsupportedMediaTypeException';
     } else if (exception.name === 'UnprocessableEntityException') {
-      status = HttpStatus.UNPROCESSABLE_ENTITY; error = 'UnprocessableEntityException';
+      status = HttpStatus.UNPROCESSABLE_ENTITY;
+      error = 'UnprocessableEntityException';
     } else if (exception.name === 'NotAcceptableException') {
-      status = HttpStatus.NOT_ACCEPTABLE; error = 'NotAcceptableException';
+      status = HttpStatus.NOT_ACCEPTABLE;
+      error = 'NotAcceptableException';
     } else if (exception.name === 'RdfXmlSerializationException') {
       // GSP-004: RDF/XML cannot express every graph (unsplittable predicate
       // IRIs, XML-1.0-illegal literal characters). This is a property of the
@@ -52,9 +64,11 @@ export class GspExceptionFilter implements ExceptionFilter {
       // recorded in application-design.md §7.1. Still 500: the media type
       // *is* supported, this specific graph is unserializable in it, and
       // silently dropping the statement would violate the round-trip MUSTs.
-      status = HttpStatus.INTERNAL_SERVER_ERROR; error = 'RdfXmlSerializationException';
+      status = HttpStatus.INTERNAL_SERVER_ERROR;
+      error = 'RdfXmlSerializationException';
     } else if (exception instanceof HttpException) {
-      status = exception.getStatus(); error = exception.name;
+      status = exception.getStatus();
+      error = exception.name;
     }
 
     response.status(status).json({
