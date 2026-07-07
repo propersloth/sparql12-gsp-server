@@ -35,10 +35,13 @@ const XSD_STRING = 'http://www.w3.org/2001/XMLSchema#string';
 const RDF_LANG_STRING = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString';
 
 export interface NormalizedTriple {
-  subject: string;
+  subject: string; // IRI (subjectType 'U') or genid label without '_:' (subjectType 'B')
   subjectType: 'U' | 'B';
   predicate: string;
   object: string;
+  // For objectType 'B': the genid label WITHOUT '_:' prefix (e.g. 'genid-uuid').
+  // Stored and retrieved verbatim. RdfService.triplesToDataset reconstructs via
+  // DataFactory.blankNode(label), preserving termType === 'BlankNode' for round-trips.
   objectType: 'U' | 'L' | 'B';
   langTag?: string;
   datatype?: string;
@@ -576,5 +579,4 @@ function sparqlTripleToNormalized(t: SparqlTriple): NormalizedTriple {
 
   return triple;
 }
-
 
