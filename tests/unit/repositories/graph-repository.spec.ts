@@ -52,6 +52,20 @@ describe('GraphRepository', () => {
     });
   });
 
+  describe('findById (TC-ID-03)', () => {
+    it('returns the graph for a known UUID', async () => {
+      mockRepo.findOne.mockResolvedValue(makeGraph());
+      const g = await repo.findById('uuid-123');
+      expect(g?.id).toBe('uuid-123');
+      expect(mockRepo.findOne).toHaveBeenCalledWith({ where: { id: 'uuid-123' } });
+    });
+
+    it('returns null for an unknown UUID', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      expect(await repo.findById('uuid-unknown')).toBeNull();
+    });
+  });
+
   describe('findDefault (TC-GET-07)', () => {
     it('finds the seeded default graph by is_default flag', async () => {
       const def = makeGraph({ iri: DEFAULT_GRAPH_IRI, isDefault: true, id: 'uuid-default' });
@@ -147,6 +161,15 @@ describe('GraphRepository', () => {
       );
       expect(result).toBe(5);           // coerced from string '5' to number
       expect(typeof result).toBe('number');
+    });
+
+    it('incrementVersionInTxn throws on invalid DB version value', async () => {
+      const mockManager = {
+        query: jest.fn().mockResolvedValue([{ version: 'NaN' }]),
+      } as any;
+      await expect(repo.incrementVersionInTxn(mockManager, 'uuid-123')).rejects.toThrow(
+        'Invalid or unsafe graph version value from DB',
+      );
     });
   });
 });

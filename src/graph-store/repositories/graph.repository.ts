@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
-import { Graph } from '../../database/entities/graph.entity';
+import { DEFAULT_GRAPH_IRI, Graph } from '../../database/entities/graph.entity';
 
-export const DEFAULT_GRAPH_IRI = 'urn:x-arq:DefaultGraph';
+export { DEFAULT_GRAPH_IRI };
 
 @Injectable()
 export class GraphRepository {
@@ -63,6 +63,10 @@ export class GraphRepository {
     if (rows.length === 0) {
       throw new Error(`Data consistency error: graph ${id} not found during version increment`);
     }
-    return Number(rows[0].version);
+    const version = Number.parseInt(rows[0].version, 10);
+    if (Number.isNaN(version) || !Number.isSafeInteger(version)) {
+      throw new Error(`Invalid or unsafe graph version value from DB: ${rows[0].version}`);
+    }
+    return version;
   }
 }
