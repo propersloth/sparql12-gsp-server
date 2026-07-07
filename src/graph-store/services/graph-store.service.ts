@@ -58,11 +58,11 @@ export class GraphStoreService {
     }
 
     const triples = await this.tripleRepository.findByGraphId(graph.id);
-    const labelIri = graph.isDefault ? null : graph.iri;
-    const dataset = this.rdfService.triplesToDataset(triples, null);
+    const namedGraphIri = graph.isDefault ? null : graph.iri;
+    const defaultGraphDataset = this.rdfService.triplesToDataset(triples, null);
     const content = QUAD_FORMATS.has(match.type)
-      ? await this.rdfService.serializeToDataset(dataset, match.type, labelIri)
-      : await this.rdfService.serialize(dataset, match.type);
+      ? await this.rdfService.serializeToDataset(defaultGraphDataset, match.type, namedGraphIri)
+      : await this.rdfService.serialize(defaultGraphDataset, match.type);
 
     return { content, contentType: match.type, etag, status: 200 };
   }
