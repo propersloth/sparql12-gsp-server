@@ -11,7 +11,7 @@ export interface ServerConfig {
 
 export interface AuthConfig {
   enabled: boolean;
-  jwt: { secret: string };
+  jwt: { secret: string; issuer: string };
   apiKeys: string[];
 }
 
