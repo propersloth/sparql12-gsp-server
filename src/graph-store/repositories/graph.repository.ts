@@ -16,6 +16,13 @@ export class GraphRepository {
     return this.repo.findOne({ where: { iri } });
   }
 
+  async findByIriOrDefault(iri: string | null): Promise<Graph | null> {
+    if (iri === null) {
+      return this.findDefault();
+    }
+    return this.findByIri(iri);
+  }
+
   async findById(id: string): Promise<Graph | null> {
     return this.repo.findOne({ where: { id } });
   }
