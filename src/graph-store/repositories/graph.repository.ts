@@ -56,10 +56,13 @@ export class GraphRepository {
   }
 
   async incrementVersionInTxn(m: EntityManager, id: string): Promise<number> {
-    const [row] = await m.query(
+    const rows: Array<{ version: string }> = await m.query(
       `UPDATE graphs SET version = version + 1, updated_at = now() WHERE id = $1 RETURNING version`,
       [id],
     );
-    return Number(row.version);
+    if (rows.length === 0) {
+      throw new Error(`Graph not found for version increment: ${id}`);
+    }
+    return Number(rows[0].version);
   }
 }
