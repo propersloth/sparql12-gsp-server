@@ -98,6 +98,21 @@ describe('GspConfiguration', () => {
     expect(off.server.patchEnabled).toBe(false);
   });
 
+  it('fromEnvironment maps JWT issuer with default', async () => {
+    const defaultIssuer = await GspConfiguration.fromEnvironment({
+      GSP_DATABASE_URL: 'postgresql://localhost/test',
+      GSP_AUTH_ENABLED: 'false',
+    });
+    const explicitIssuer = await GspConfiguration.fromEnvironment({
+      GSP_DATABASE_URL: 'postgresql://localhost/test',
+      GSP_AUTH_ENABLED: 'false',
+      GSP_AUTH_JWT_ISSUER: 'test-issuer',
+    });
+
+    expect(defaultIssuer.auth.jwt.issuer).toBe('gsp-server');
+    expect(explicitIssuer.auth.jwt.issuer).toBe('test-issuer');
+  });
+
   it('throws on missing GSP_DATABASE_URL', async () => {
     await expect(GspConfiguration.fromEnvironment({})).rejects.toThrow(
       'Config validation failed',

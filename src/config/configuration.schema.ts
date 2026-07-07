@@ -31,6 +31,10 @@ export class GspEnvironmentVariables {
   jwtSecret?: string;
 
   @IsOptional()
+  @IsString()
+  jwtIssuer?: string = 'gsp-server';
+
+  @IsOptional()
   @Transform(({ value }) => (value ? value.split(',') : []))
   @IsString({ each: true })
   apiKeys?: string[] = [];

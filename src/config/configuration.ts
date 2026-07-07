@@ -12,7 +12,7 @@ export class GspConfiguration implements IGspConfiguration {
     streamThresholdBytes: number;
     patchEnabled: boolean;
   };
-  auth!: { enabled: boolean; jwt: { secret: string }; apiKeys: string[] };
+  auth!: { enabled: boolean; jwt: { secret: string; issuer: string }; apiKeys: string[] };
   observability!: {
     otel: { enabled: boolean; endpoint: string; serviceName: string };
   };
@@ -25,6 +25,7 @@ export class GspConfiguration implements IGspConfiguration {
       baseUrl: env.GSP_BASE_URL,
       authEnabled: env.GSP_AUTH_ENABLED,
       jwtSecret: env.GSP_AUTH_JWT_SECRET,
+      jwtIssuer: env.GSP_AUTH_JWT_ISSUER,
       apiKeys: env.GSP_AUTH_API_KEYS,
       patchEnabled: env.GSP_PATCH_ENABLED,
       otelEnabled: env.GSP_OTEL_ENABLED,
@@ -53,7 +54,10 @@ export class GspConfiguration implements IGspConfiguration {
     };
     this.auth = {
       enabled: env.authEnabled !== false,
-      jwt: { secret: env.jwtSecret ?? '' },
+      jwt: {
+        secret: env.jwtSecret ?? '',
+        issuer: env.jwtIssuer ?? 'gsp-server',
+      },
       apiKeys: env.apiKeys ?? [],
     };
     this.observability = {
