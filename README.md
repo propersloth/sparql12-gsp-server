@@ -3,7 +3,7 @@
 NestJS + TypeScript implementation of a SPARQL 1.2 Graph Store Protocol server.
 
 > [!IMPORTANT]
-> Milestones M1 Foundation, M2 Data Layer, and M3 Core Logic are complete. The server now handles the full set of Graph Store Protocol HTTP methods (GET, HEAD, PUT, POST, DELETE, PATCH) across both direct and indirect graph addressing modes.
+> Milestones M1 Foundation, M2 Data Layer, M3 Core Logic, and M4 HTTP Layer are complete. The server now handles the full set of Graph Store Protocol HTTP methods (GET, HEAD, PUT, POST, DELETE, PATCH) across both direct and indirect graph addressing modes, with structured logging, ETag/Vary header injection, a standardized exception filter, and pluggable auth guards.
 
 ## Table of contents
 
@@ -11,6 +11,7 @@ NestJS + TypeScript implementation of a SPARQL 1.2 Graph Store Protocol server.
 - [M1 foundation deliverables](#m1-foundation-deliverables)
 - [M2 data layer deliverables](#m2-data-layer-deliverables)
 - [M3 core logic deliverables](#m3-core-logic-deliverables)
+- [M4 HTTP layer deliverables](#m4-http-layer-deliverables)
 - [Current HTTP surface](#current-http-surface)
 - [What is not implemented yet](#what-is-not-implemented-yet)
 - [Quick start (developer)](#quick-start-developer)
@@ -33,7 +34,13 @@ This repository is a functioning SPARQL 1.2 Graph Store Protocol server. It incl
 - Content negotiation and IRI routing
 - Full GSP HTTP controller (GET, HEAD, PUT, POST, DELETE, PATCH)
 - SPARQL 1.1 Update–based PATCH with graph-scope enforcement
-- Unit coverage for all protocol operations
+- Auth service with JWT and API-key validation
+- Pluggable auth guards (JWT, API-key, optional read bypass)
+- Structured logging interceptor
+- OpenTelemetry-ready tracing interceptor
+- ETag and `Vary: Accept` header injection
+- Standardized GSP exception filter with named error mappings
+- Unit coverage for all protocol operations and HTTP layer components
 
 ## M1 foundation deliverables
 
@@ -74,6 +81,22 @@ This repository is a functioning SPARQL 1.2 Graph Store Protocol server. It incl
 | PATCH unsupported media-type exception | `/src/graph-store/exceptions/patch-unsupported-media-type.exception.ts` | Complete |
 | Core logic unit coverage | `/tests/unit/**/*`, `/tests/integration/**/*` | Complete |
 
+## M4 HTTP layer deliverables
+
+| Deliverable | Path | Status |
+| --- | --- | --- |
+| Auth service (JWT + API-key, in-house HMAC-SHA256) | `/src/auth/auth.service.ts` | Complete |
+| JWT guard | `/src/auth/guards/jwt-auth.guard.ts` | Complete |
+| API-key guard | `/src/auth/guards/api-key.guard.ts` | Complete |
+| Optional auth guard (read bypass) | `/src/auth/guards/optional-auth.guard.ts` | Complete |
+| Structured logging interceptor | `/src/common/interceptors/logging.interceptor.ts` | Complete |
+| OTel-ready tracing interceptor | `/src/common/interceptors/tracing.interceptor.ts` | Complete |
+| ETag + `Vary: Accept` interceptor | `/src/common/interceptors/etag.interceptor.ts` | Complete |
+| GSP exception filter (named error-to-status map) | `/src/common/filters/gsp-exception.filter.ts` | Complete |
+| Method-not-allowed filter | `/src/common/filters/method-not-allowed.filter.ts` | Complete |
+| M4 unit coverage | `/tests/unit/auth/auth.spec.ts`, `/tests/unit/common/*`, `/tests/unit/interceptors.spec.ts` | Complete |
+| M4 integration coverage | `/tests/integration/controllers.spec.ts`, `/tests/integration/headers.spec.ts` | Complete |
+
 ## Current HTTP surface
 
 ### Graph Store Protocol endpoints
@@ -103,8 +126,8 @@ Each method is available on both a **direct** path (`/graph/:iri`) and an **indi
 
 ## What is not implemented yet
 
-- Auth enforcement (JWT validation and API key checking are configured but not applied at the request level)
-- OpenTelemetry observability pipeline
+- Auth route enforcement (guards implemented; `@UseGuards` wiring to controller routes is pending)
+- OpenTelemetry observability pipeline (tracing interceptor stub in place; full OTel SDK initialization and exporter configuration is M5)
 
 ## Quick start (developer)
 
@@ -149,7 +172,7 @@ curl http://localhost:3000/health
 | `GSP_AUTH_ENABLED` | No | `true` | Accepts `true/false/1/0`. |
 | `GSP_AUTH_JWT_SECRET` | Conditional | — | Required unless auth is disabled. |
 | `GSP_AUTH_API_KEYS` | No | empty | Comma-delimited API key list. |
-| `GSP_PATCH_ENABLED` | No | `true` | Configured but not yet enforced at the request level. |
+| `GSP_PATCH_ENABLED` | No | `true` | Controls whether `Accept-Patch` is advertised in OPTIONS responses. |
 | `GSP_OTEL_ENABLED` | No | `false` | Enables OpenTelemetry export. |
 | `GSP_OTEL_ENDPOINT` | No | `http://localhost:4318` | OTel collector endpoint. |
 | `GSP_OTEL_SERVICE_NAME` | No | `gsp-server` | OTel service name. |
@@ -189,6 +212,10 @@ Current automated coverage includes:
 - graph routing (direct path, indirect query parameter, IRI validation)
 - graph store service (GET, HEAD, PUT, POST, DELETE, PATCH operations)
 - PATCH scope enforcement and SPARQL 1.1 Update application
+- auth guards (JWT, API-key, optional read bypass)
+- HTTP interceptors (logging, tracing, ETag and Vary injection)
+- GSP exception filter (named exception-to-status mapping)
+- controller routing and HTTP method dispatch (direct, indirect, minted)
 
 > [!NOTE]
 > `npm test` intentionally excludes `tests/unit/database/schema.spec.ts` because that suite requires a reachable PostgreSQL instance.
@@ -216,6 +243,11 @@ Current automated coverage includes:
 src/
   app.module.ts
   main.ts
+  auth/
+    guards/
+  common/
+    filters/
+    interceptors/
   config/
   database/
     entities/
@@ -232,6 +264,8 @@ src/
   types/
 tests/
   unit/
+    auth/
+    common/
     config/
     database/
     rdf/
