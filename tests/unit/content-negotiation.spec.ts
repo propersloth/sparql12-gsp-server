@@ -159,6 +159,13 @@ describe('ContentNegotiationService', () => {
       expect(service.inferContentType(buf)).toBe('application/n-triples');
     });
 
+    it('inferContentType returns application/n-triples for multi-line blank-node content', () => {
+      const buf = Buffer.from(
+        '# comment\n_:node-1.2_test <http://ex.org/p> "bonjour"@en-001 .',
+      );
+      expect(service.inferContentType(buf)).toBe('application/n-triples');
+    });
+
     it('inferContentType returns application/rdf+xml as fallback', () => {
       const buf = Buffer.from('<?xml version="1.0"?>');
       expect(service.inferContentType(buf)).toBe('application/rdf+xml');
