@@ -128,6 +128,10 @@ describe('ETagService', () => {
       // The service strips weak ETags so callers treat them as absent.
       expect(svc.extractFirstEtag('W/"g.1.t"')).toBeNull();
     });
+
+    it('does NOT accept a lowercase weak ETag (w/) — returns null (case-insensitive)', () => {
+      expect(svc.extractFirstEtag('w/"g.1.t"')).toBeNull();
+    });
   });
 
   // ------------------------------------------------------------------ CANONICAL_MUTATION_FORMAT (v2, M3 fix)
