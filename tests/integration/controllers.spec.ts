@@ -11,16 +11,12 @@
 import { INestApplication, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
-import request from 'supertest';
+import request = require('supertest');
 import { GraphStoreController } from '../../src/graph-store/graph-store.controller';
-import { GraphStoreService } from '../../src/graph-store/services/graph-store.service';
+import { buildMintedGraphIri, GraphStoreService } from '../../src/graph-store/services/graph-store.service';
 import { ETagService } from '../../src/graph-store/services/etag.service';
 import { GraphRoutingService } from '../../src/graph-store/services/graph-routing.service';
 import { getGraph, putGraph } from '../helpers/request.helper';
-
-const { Test: SupertestTest } = require('supertest') as {
-  Test: new (app: unknown, method: string, path: string) => PromiseLike<any>;
-};
 
 // ── Stateful in-memory store ──────────────────────────────────────────────────
 // Allows tests that PUT/POST and then read back to work without a real DB.
@@ -39,7 +35,7 @@ function nextEtag(): string {
 }
 
 function mintedGraphIri(uuid: string): string {
-  return `${baseUrl}/graphs/${uuid}`;
+  return buildMintedGraphIri(baseUrl, uuid);
 }
 
 const graphStore = {
@@ -102,7 +98,7 @@ const graphStore = {
 describe('GraphStoreController routing', () => {
   let app: INestApplication;
 
-  const rawRequest = (method: string, path: string) => new SupertestTest(app.getHttpServer(), method, path);
+  const rawRequest = (method: string, path: string) => new request.Test(app.getHttpServer(), method, path);
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({

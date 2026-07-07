@@ -39,6 +39,10 @@ export interface MultipartPart {
   filename?: string;
 }
 
+export function buildMintedGraphIri(baseUrl: string, uuid: string): string {
+  return `${baseUrl}/graphs/${uuid}`;
+}
+
 @Injectable()
 export class GraphStoreService {
   constructor(
@@ -433,7 +437,7 @@ export class GraphStoreService {
   }
 
   mintedGraphIri(uuid: string): string {
-    return `${this.getBaseUrl()}/graphs/${uuid}`;
+    return buildMintedGraphIri(this.getBaseUrl(), uuid);
   }
 
   private getBaseUrl(): string {
