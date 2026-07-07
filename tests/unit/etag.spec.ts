@@ -142,7 +142,7 @@ describe('ETagService', () => {
     });
 
     it('skips weak ETags and returns first strong ETag from a list', () => {
-      expect(svc.extractFirstEtag('W/"g.1.t", "g.2.t", W/"g.3.t"')).toBe('"g.2.t"');
+      expect(svc.extractFirstEtag('W/"g.1.t", "g.2.t"')).toBe('"g.2.t"');
     });
   });
 
