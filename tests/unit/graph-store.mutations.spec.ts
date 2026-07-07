@@ -55,7 +55,7 @@ describe('GraphStoreService mutations', () => {
       insertInTxn: jest.fn(),
     };
     const configService = {
-      get: jest.fn((key: string) => key === 'GSP_BASE_URL' ? 'http://api.example.com' : undefined),
+      get: jest.fn((key: string) => (key === 'GSP_BASE_URL' ? 'http://api.example.com' : undefined)),
     };
 
     const service = new GraphStoreService(

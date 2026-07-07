@@ -11,11 +11,10 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ETagService } from './services/etag.service';
 import { GraphRoutingService } from './services/graph-routing.service';
 import { GraphStoreService, MultipartPart, Preconditions } from './services/graph-store.service';
-
-const { memoryStorage } = require('multer');
 
 type RequestLike = AsyncIterable<unknown> & {
   body?: unknown;
