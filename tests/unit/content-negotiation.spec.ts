@@ -1,3 +1,4 @@
+// TEST MATRIX: TC-GET-03, TC-GET-05, TC-FMT-03, TC-RDF-03
 import { ContentNegotiationService } from '../../src/graph-store/services/content-negotiation.service';
 
 describe('ContentNegotiationService', () => {
@@ -106,6 +107,15 @@ describe('ContentNegotiationService', () => {
 
     it('should select subtype wildcard match', () => {
       const parsed = service.parseAccept('application/*');
+      const supported = ['text/turtle', 'application/rdf+xml'];
+
+      const match = service.getBestMatch(parsed, supported);
+
+      expect(match?.type).toBe('application/rdf+xml');
+    });
+
+    it('should prefer exact matches over wildcards with equal q-values', () => {
+      const parsed = service.parseAccept('application/*;q=1,application/rdf+xml;q=1');
       const supported = ['text/turtle', 'application/rdf+xml'];
 
       const match = service.getBestMatch(parsed, supported);

@@ -41,7 +41,12 @@ export class ContentNegotiationService {
       .split(',')
       .map((part, index) => this.parseAcceptPart(part, index))
       .filter((entry): entry is AcceptEntry & { index: number } => entry !== null)
-      .sort((a, b) => (b.quality - a.quality) || (a.index - b.index))
+      .sort(
+        (a, b) =>
+          (b.quality - a.quality) ||
+          (this.acceptSpecificity(b) - this.acceptSpecificity(a)) ||
+          (a.index - b.index),
+      )
       .map(({ index, ...entry }) => entry);
 
     return entries.length > 0
@@ -159,6 +164,12 @@ export class ContentNegotiationService {
     }
 
     return { type, subtype, quality, params, raw: trimmed, index };
+  }
+
+  private acceptSpecificity(entry: Pick<AcceptEntry, 'type' | 'subtype'>): number {
+    if (entry.type === '*' && entry.subtype === '*') return 0;
+    if (entry.subtype === '*') return 1;
+    return 2;
   }
 
   private looksLikeNTriples(value: string): boolean {
