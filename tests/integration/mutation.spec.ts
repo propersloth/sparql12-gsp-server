@@ -14,6 +14,7 @@ describe('GraphStoreController mutation wiring', () => {
     putGraph: jest.fn(),
     postGraph: jest.fn(),
     deleteGraph: jest.fn(),
+    patchGraph: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -49,6 +50,7 @@ describe('GraphStoreController mutation wiring', () => {
     graphStore.putGraph.mockResolvedValue({ status: 204, etag: '"mut"' });
     graphStore.postGraph.mockResolvedValue({ status: 201, etag: '"mut"', location: 'http://api/graphs/x' });
     graphStore.deleteGraph.mockResolvedValue({ status: 204, etag: '"mut"' });
+    graphStore.patchGraph.mockResolvedValue({ status: 200, etag: '"mut"' });
   });
 
   it('GET /graph/:iri returns negotiated headers and body', async () => {
@@ -152,5 +154,53 @@ describe('GraphStoreController mutation wiring', () => {
       ifMatch: '"graph.9.text%2Fturtle"',
       ifNoneMatch: undefined,
     });
+  });
+
+  it('PATCH /graph/:iri passes iri, body, content-type, and raw If-Match to the service', async () => {
+    const response = await request(app.getHttpServer())
+      .patch(`/graph/${encodeURIComponent('http://ex.org/g')}`)
+      .set('Content-Type', 'application/sparql-update')
+      .set('If-Match', '"g.1.text%2Fturtle"')
+      .send('INSERT DATA { <http://ex.org/s> <http://ex.org/p> <http://ex.org/o> }')
+      .expect(200);
+
+    expect(graphStore.patchGraph).toHaveBeenCalledWith(
+      'http://ex.org/g',
+      'INSERT DATA { <http://ex.org/s> <http://ex.org/p> <http://ex.org/o> }',
+      'application/sparql-update',
+      '"g.1.text%2Fturtle"',
+    );
+    expect(response.headers.etag).toBe('"mut"');
+  });
+
+  it('PATCH /graph-store?default passes null target to the service', async () => {
+    await request(app.getHttpServer())
+      .patch('/graph-store?default')
+      .set('Content-Type', 'application/sparql-update')
+      .set('If-Match', '"g.1.text%2Fturtle"')
+      .send('INSERT DATA { <http://ex.org/s> <http://ex.org/p> <http://ex.org/o> }')
+      .expect(200);
+
+    expect(graphStore.patchGraph).toHaveBeenCalledWith(
+      null,
+      'INSERT DATA { <http://ex.org/s> <http://ex.org/p> <http://ex.org/o> }',
+      'application/sparql-update',
+      '"g.1.text%2Fturtle"',
+    );
+  });
+
+  it('PATCH without If-Match header passes undefined to the service', async () => {
+    graphStore.patchGraph.mockRejectedValue(Object.assign(new Error('If-Match required'), { status: 428 }));
+    await request(app.getHttpServer())
+      .patch(`/graph/${encodeURIComponent('http://ex.org/g')}`)
+      .set('Content-Type', 'application/sparql-update')
+      .send('INSERT DATA { <http://ex.org/s> <http://ex.org/p> <http://ex.org/o> }');
+
+    expect(graphStore.patchGraph).toHaveBeenCalledWith(
+      'http://ex.org/g',
+      expect.any(String),
+      'application/sparql-update',
+      undefined,
+    );
   });
 });

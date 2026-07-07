@@ -34,6 +34,16 @@ export {
 const XSD_STRING = 'http://www.w3.org/2001/XMLSchema#string';
 const RDF_LANG_STRING = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString';
 
+// ── Internal types for trivial WHERE instantiation (v1 PATCH scope) ─────────
+
+type NamedNodeTerm = { termType: 'NamedNode'; value: string };
+type BlankNodeTerm = { termType: 'BlankNode'; value: string };
+type LiteralTerm = { termType: 'Literal'; value: string; langTag?: string; datatype?: string };
+type TermValue = NamedNodeTerm | BlankNodeTerm | LiteralTerm;
+type TermBinding = Map<string, TermValue>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface NormalizedTriple {
   subject: string; // IRI (subjectType 'U') or genid label without '_:' (subjectType 'B')
   subjectType: 'U' | 'B';
@@ -437,6 +447,13 @@ export class RdfServiceImpl implements RdfService {
       } else if (update.updateType === 'delete') {
         const triples = this.extractTriples(update.delete, targetIri);
         result = deleteTriples(result, triples);
+      } else if (update.updateType === 'insertdelete') {
+        // v1 scope: only trivial WHERE {} and WHERE { ?s ?p ?o } are supported.
+        const bindings = this.evalSimpleWhere(update.where ?? [], result);
+        const toDelete = this.instantiateTemplate(update.delete ?? [], bindings);
+        result = deleteTriples(result, toDelete);
+        const toInsert = this.instantiateTemplate(update.insert ?? [], bindings);
+        result = this.mergeNormalized(result, toInsert);
       } else {
         throw new UnprocessableEntityException(
           `Unsupported SPARQL update type: ${update.updateType}`,
@@ -445,6 +462,143 @@ export class RdfServiceImpl implements RdfService {
     }
 
     return result;
+  }
+
+  /**
+   * Evaluate a WHERE clause for the v1 scope boundary.
+   * Supports only:
+   *   - WHERE {}  (empty — one empty binding, i.e. "run once with no substitutions")
+   *   - WHERE { ?s ?p ?o }  (all-variable triple — one binding per existing triple)
+   * Any other pattern throws UnprocessableEntityException (422).
+   */
+  private evalSimpleWhere(
+    where: any[],
+    existing: NormalizedTriple[],
+  ): TermBinding[] {
+    if (where.length === 0) {
+      return [new Map<string, TermValue>()];
+    }
+
+    if (
+      where.length === 1 &&
+      where[0].type === 'bgp' &&
+      Array.isArray(where[0].triples) &&
+      where[0].triples.length === 1
+    ) {
+      const triple = where[0].triples[0];
+      if (
+        triple.subject?.termType === 'Variable' &&
+        triple.predicate?.termType === 'Variable' &&
+        triple.object?.termType === 'Variable'
+      ) {
+        const sVar = triple.subject.value as string;
+        const pVar = triple.predicate.value as string;
+        const oVar = triple.object.value as string;
+
+        return existing.map((t): TermBinding => {
+          const binding = new Map<string, TermValue>();
+          binding.set(sVar, {
+            termType: t.subjectType === 'B' ? 'BlankNode' : 'NamedNode',
+            value: t.subject,
+          });
+          binding.set(pVar, { termType: 'NamedNode', value: t.predicate });
+          if (t.objectType === 'B') {
+            binding.set(oVar, { termType: 'BlankNode', value: t.object });
+          } else if (t.objectType === 'L') {
+            const tv: TermValue = { termType: 'Literal', value: t.object };
+            if (t.langTag) (tv as LiteralTerm).langTag = t.langTag;
+            if (t.datatype) (tv as LiteralTerm).datatype = t.datatype;
+            binding.set(oVar, tv);
+          } else {
+            binding.set(oVar, { termType: 'NamedNode', value: t.object });
+          }
+          return binding;
+        });
+      }
+    }
+
+    throw new UnprocessableEntityException(
+      'Complex WHERE patterns are not supported in v1 PATCH; use INSERT DATA / DELETE DATA or trivial WHERE { ?s ?p ?o }',
+    );
+  }
+
+  /**
+   * Instantiate BGP template patterns with the given set of bindings.
+   * Variables are substituted from the binding; ground terms are kept as-is.
+   */
+  private instantiateTemplate(
+    patterns: Quads[],
+    bindings: TermBinding[],
+  ): NormalizedTriple[] {
+    const result: NormalizedTriple[] = [];
+
+    for (const binding of bindings) {
+      for (const pattern of patterns) {
+        if (isBgpPattern(pattern)) {
+          for (const t of pattern.triples) {
+            const triple = this.instantiateSparqlTriple(t, binding);
+            if (triple) result.push(triple);
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  private instantiateSparqlTriple(
+    t: SparqlTriple,
+    binding: TermBinding,
+  ): NormalizedTriple | null {
+    const subjectTerm = this.resolveTerm(t.subject as any, binding);
+    const predicateTerm = this.resolveTerm(t.predicate as any, binding);
+    const objectTerm = this.resolveTerm(t.object as any, binding);
+
+    if (!subjectTerm || !predicateTerm || !objectTerm) return null;
+
+    const triple: NormalizedTriple = {
+      subject: subjectTerm.value,
+      subjectType: subjectTerm.termType === 'BlankNode' ? 'B' : 'U',
+      predicate: predicateTerm.value,
+      object: objectTerm.value,
+      objectType: objectTerm.termType === 'BlankNode' ? 'B' : objectTerm.termType === 'Literal' ? 'L' : 'U',
+    };
+
+    if (objectTerm.termType === 'Literal') {
+      const lit = objectTerm as LiteralTerm;
+      if (lit.langTag) triple.langTag = lit.langTag;
+      if (lit.datatype) triple.datatype = lit.datatype;
+    }
+
+    return triple;
+  }
+
+  private resolveTerm(
+    term: { termType: string; value: string; language?: string; datatype?: { value: string } },
+    binding: TermBinding,
+  ): TermValue | null {
+    if (term.termType === 'Variable') {
+      return binding.get(term.value) ?? null;
+    }
+    if (term.termType === 'NamedNode') {
+      return { termType: 'NamedNode', value: term.value };
+    }
+    if (term.termType === 'BlankNode') {
+      return { termType: 'BlankNode', value: term.value };
+    }
+    if (term.termType === 'Literal') {
+      const tv: TermValue = { termType: 'Literal', value: term.value };
+      if (term.language) (tv as LiteralTerm).langTag = term.language;
+      if (
+        term.datatype?.value &&
+        term.datatype.value !== XSD_STRING &&
+        term.datatype.value !== RDF_LANG_STRING
+      ) {
+        (tv as LiteralTerm).datatype = term.datatype.value;
+      }
+      return tv;
+    }
+    return null;
   }
 
   private extractTriples(
