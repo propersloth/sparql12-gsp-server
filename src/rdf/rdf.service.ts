@@ -15,7 +15,7 @@ import {
   serializeRdfXml,
   RdfXmlSubject,
   RdfXmlObject,
-  RdfXmlDefaultGraph,
+  RdfXmlGraph,
   RdfXmlNamedNode,
 } from './serializers/rdfxml.serializer';
 import {

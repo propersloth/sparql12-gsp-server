@@ -1,22 +1,23 @@
-export class ParseException extends Error {
+import {
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
+
+export class ParseException extends BadRequestException {
   constructor(message: string) {
     super(message);
     this.name = 'ParseException';
   }
 }
 
-export class DatasetMismatchException extends Error {
-  readonly statusCode = 400;
-
+export class DatasetMismatchException extends BadRequestException {
   constructor(message: string) {
     super(message);
     this.name = 'DatasetMismatchException';
   }
 }
 
-export class RdfXmlSerializationException extends Error {
-  readonly statusCode = 500;
-
+export class RdfXmlSerializationException extends InternalServerErrorException {
   constructor(message: string) {
     super(message);
     this.name = 'RdfXmlSerializationException';
