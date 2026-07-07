@@ -34,7 +34,7 @@ export class ETagService {
       throw new InvalidEtagException(`ETag must have three dot-delimited components: ${raw}`);
     const graphId   = inner.substring(0, first);
     const versionS  = inner.substring(first + 1, second);
-    if (!/^\d+$/.test(versionS)) throw new InvalidEtagException(`ETag version not numeric: ${raw}`);
+    if (!/^\d+$/.test(versionS)) throw new InvalidEtagException(`ETag version must be fully numeric: ${raw}`);
     const version = Number(versionS);
     if (!Number.isSafeInteger(version)) throw new InvalidEtagException(`ETag version out of range: ${raw}`);
     const encodedMediaType = inner.substring(second + 1);
