@@ -134,7 +134,7 @@ Current automated coverage includes:
 - RDF/XML serialization edge cases
 
 > [!WARNING]
-> Some schema tests require a reachable PostgreSQL instance (default: `******localhost:5432/gsp_test` or `TEST_DATABASE_URL`).
+> Some schema tests require a reachable PostgreSQL instance for the local `gsp_test` database, or an explicit `TEST_DATABASE_URL` override.
 
 <details>
   <summary>Fixture/media coverage currently present in <code>/tests/fixtures</code></summary>
