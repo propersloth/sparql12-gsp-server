@@ -39,6 +39,10 @@ export interface MultipartPart {
   filename?: string;
 }
 
+export function buildMintedGraphIri(baseUrl: string, uuid: string): string {
+  return `${baseUrl}/graphs/${uuid}`;
+}
+
 @Injectable()
 export class GraphStoreService {
   constructor(
@@ -254,7 +258,7 @@ export class GraphStoreService {
       });
     }
 
-    const mintedIri = `${this.getBaseUrl()}/graphs/${randomUUID()}`;
+    const mintedIri = this.mintedGraphIri(randomUUID());
     return this.dataSource.transaction(async (manager) => {
       const graph = await this.graphRepository.createInTxn(manager, mintedIri);
       await this.tripleRepository.insertInTxn(manager, graph.id, incoming);
@@ -430,6 +434,10 @@ export class GraphStoreService {
     if (pre.ifMatch && (!current || !this.etagService.compareState(pre.ifMatch, current.id, current.version))) {
       throw new PreconditionFailedException();
     }
+  }
+
+  mintedGraphIri(uuid: string): string {
+    return buildMintedGraphIri(this.getBaseUrl(), uuid);
   }
 
   private getBaseUrl(): string {
