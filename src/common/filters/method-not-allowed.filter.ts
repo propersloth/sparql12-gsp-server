@@ -12,8 +12,8 @@ export class MethodNotAllowedFilter implements ExceptionFilter {
   catch(ex: MethodNotAllowedException, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<MethodNotAllowedResponse>();
     res
-      .status(405)
+      .status(ex.getStatus())
       .header('Allow', ex.allowedMethods)
-      .json({ statusCode: 405, message: 'Method Not Allowed' });
+      .json(ex.getResponse());
   }
 }

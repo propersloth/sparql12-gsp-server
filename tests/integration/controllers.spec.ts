@@ -28,12 +28,19 @@ interface GraphEntry {
 
 const store = new Map<string, GraphEntry>();
 let versionCounter = 0;
+const baseUrl = 'http://localhost:3000';
 
 function nextEtag(): string {
   return `"v${++versionCounter}"`;
 }
 
+function mintedGraphIri(uuid: string): string {
+  return `${baseUrl}/graphs/${uuid}`;
+}
+
 const graphStore = {
+  mintedGraphIri: jest.fn(mintedGraphIri),
+
   getGraph: jest.fn(async (iri: string | null, _accept?: string, _ifNoneMatch?: string) => {
     const key = iri ?? '__default__';
     const entry = store.get(key);
@@ -58,7 +65,7 @@ const graphStore = {
   postGraph: jest.fn(async (body: Buffer, _contentType: string, targetIri: string | null | undefined) => {
     if (targetIri === undefined) {
       const uuid = randomUUID();
-      const location = `http://localhost:3000/graphs/${uuid}`;
+      const location = mintedGraphIri(uuid);
       const etag = nextEtag();
       store.set(location, { content: body.toString(), etag });
       return { status: 201 as const, location, etag };

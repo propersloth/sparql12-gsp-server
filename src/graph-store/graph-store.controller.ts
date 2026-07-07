@@ -75,12 +75,8 @@ export class GraphStoreController {
     return this.configService?.get<boolean>('GSP_PATCH_ENABLED') ?? true;
   }
 
-  private get baseUrl(): string {
-    return this.configService?.get<string>('GSP_BASE_URL') ?? 'http://localhost:3000';
-  }
-
   private mintedIri(uuid: string): string {
-    return `${this.baseUrl}/graphs/${uuid}`;
+    return this.graphStore.mintedGraphIri(uuid);
   }
 
   @Get('graph/:iri')

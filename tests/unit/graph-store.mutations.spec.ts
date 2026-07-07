@@ -195,6 +195,12 @@ describe('GraphStoreService mutations', () => {
     expect(ctx.etagService.generate).toHaveBeenCalledWith('minted-id', 8, CANONICAL_MUTATION_FORMAT);
   });
 
+  it('builds minted graph IRIs from the configured base URL', () => {
+    const ctx = makeService();
+
+    expect(ctx.service.mintedGraphIri('1234')).toBe('http://api.example.com/graphs/1234');
+  });
+
   it('DELETE on the default graph clears triples and invalidates prior ETags', async () => {
     const ctx = makeService();
     ctx.graphRepository.findByIriOrDefaultInTxn.mockResolvedValue({
