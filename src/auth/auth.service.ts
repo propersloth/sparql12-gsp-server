@@ -62,7 +62,15 @@ export class AuthService {
   }
 
   async hasRole(identity: Identity, _role?: string): Promise<boolean> {
-    return !!identity;
+    if (!identity) {
+      return false;
+    }
+
+    if (!_role) {
+      return true;
+    }
+
+    return identity.roles.includes(_role);
   }
 
   private get secret(): string {
