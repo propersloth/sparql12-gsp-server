@@ -178,5 +178,10 @@ describe('ContentNegotiationService', () => {
       const buf = Buffer.from('{ "not": "rdf" }');
       expect(service.inferContentType(buf)).toBe('application/ld+json');
     });
+
+    it('inferContentType returns application/ld+json for JSON-LD content', () => {
+      const buf = Buffer.from('{ "@context": { "ex": "http://ex.org/" }, "@id": "ex:s" }');
+      expect(service.inferContentType(buf)).toBe('application/ld+json');
+    });
   });
 });

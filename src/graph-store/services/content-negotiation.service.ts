@@ -21,6 +21,17 @@ export interface ContentTypeValidation {
   error?: string;
 }
 
+const N_TRIPLES_SUBJECT_PATTERN = '(?:<[^>]+>|_:[A-Za-z][A-Za-z0-9]*)';
+const N_TRIPLES_PREDICATE_PATTERN = '<[^>]+>';
+const N_TRIPLES_OBJECT_PATTERN =
+  '(?:<[^>]+>|_:[A-Za-z][A-Za-z0-9]*|"(?:[^"\\\\]|\\\\.)*"(?:@[A-Za-z]+(?:-[A-Za-z0-9]+)*|\\^\\^<[^>]+>)?)';
+// Require a full `<subject> <predicate> <object> .`-shaped line before treating
+// payload text as N-Triples during Content-Type inference.
+const N_TRIPLES_LINE_PATTERN = new RegExp(
+  `^${N_TRIPLES_SUBJECT_PATTERN}\\s+${N_TRIPLES_PREDICATE_PATTERN}\\s+${N_TRIPLES_OBJECT_PATTERN}\\s*\\.\\s*$`,
+  's',
+);
+
 @Injectable()
 export class ContentNegotiationService {
   /**
@@ -182,7 +193,6 @@ export class ContentNegotiationService {
 
   private looksLikeNTriples(value: string): boolean {
     const line = value.trim();
-    return /^(?:<[^>]+>|_:[A-Za-z][A-Za-z0-9]*)\s+<[^>]+>\s+(?:<[^>]+>|_:[A-Za-z][A-Za-z0-9]*|"(?:[^"\\]|\\.)*"(?:@[A-Za-z]+(?:-[A-Za-z0-9]+)*|\^\^<[^>]+>)?)\s*\.\s*$/s
-      .test(line);
+    return N_TRIPLES_LINE_PATTERN.test(line);
   }
 }
