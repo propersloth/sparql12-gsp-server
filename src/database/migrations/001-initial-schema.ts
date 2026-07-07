@@ -23,7 +23,6 @@ export class InitialSchema1700000000001 implements MigrationInterface {
       id BIGSERIAL PRIMARY KEY,
       graph_id UUID NOT NULL REFERENCES graphs(id) ON DELETE CASCADE,
       subject TEXT NOT NULL,
-      subject_type CHAR(1) NOT NULL CHECK (subject_type IN ('U','B')),
       predicate TEXT NOT NULL,
       object TEXT NOT NULL,
       object_type CHAR(1) NOT NULL CHECK (object_type IN ('U','L','B')),
@@ -39,7 +38,7 @@ export class InitialSchema1700000000001 implements MigrationInterface {
     await q.query(`CREATE INDEX idx_triples_graph_predicate ON triples(graph_id, predicate)`);
     await q.query(`CREATE INDEX idx_triples_graph_object    ON triples(graph_id, object)`);
     await q.query(`CREATE UNIQUE INDEX idx_triples_unique ON triples(
-      graph_id, subject, subject_type, predicate, object, object_type,
+      graph_id, subject, predicate, object, object_type,
       COALESCE(lang_tag,''), COALESCE(datatype,'')
     )`);
   }

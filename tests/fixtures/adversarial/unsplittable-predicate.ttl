@@ -1,0 +1,8 @@
+# Valid Turtle. Ingests and round-trips through Turtle/N-Triples/TriG/N-Quads/
+# JSON-LD without issue. The predicate IRI ends in '/', so it has no NCName-
+# valid local part and CANNOT be split into an XML QName — RDF/XML cannot
+# express this statement. Used to verify RdfXmlSerializationException → 500
+# (GSP-004, GSP-010, GSP-032, GSP-022).
+@prefix ex: <http://example.org/> .
+
+<http://example.org/s> <http://example.org/vocab/prefix-only/> "value" .

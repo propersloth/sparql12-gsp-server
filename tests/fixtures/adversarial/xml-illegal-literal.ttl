@@ -1,0 +1,7 @@
+# Valid Turtle — \u0001 is a legal Turtle string escape and produces a literal
+# containing U+0001, which is illegal in XML 1.0 and cannot be escaped or
+# emitted in RDF/XML. Used to verify RdfXmlSerializationException → 500
+# (GSP-004, GSP-010, GSP-032, GSP-022).
+@prefix ex: <http://example.org/> .
+
+ex:subject1 ex:predicate1 "bad\u0001char" .

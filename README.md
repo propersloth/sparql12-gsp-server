@@ -3,40 +3,59 @@
 NestJS + TypeScript implementation of a SPARQL 1.2 Graph Store Protocol server.
 
 > [!IMPORTANT]
-> This repository is in active development. Core platform artifacts exist (configuration, DB schema, health endpoint, test scaffolding), while GSP endpoint behavior is still being implemented.
+> Milestone M1 Foundation is complete. The repository now contains the application foundation, configuration system, PostgreSQL schema, migrations, and test scaffolding. Graph Store Protocol request handling is the next major implementation phase.
 
 ## Table of contents
 
-- [Current repository artifacts](#current-repository-artifacts)
-- [Implementation status](#implementation-status)
+- [Project status](#project-status)
+- [M1 foundation deliverables](#m1-foundation-deliverables)
+- [Current HTTP surface](#current-http-surface)
+- [What is not implemented yet](#what-is-not-implemented-yet)
 - [Quick start (developer)](#quick-start-developer)
 - [Configuration](#configuration)
 - [NPM scripts](#npm-scripts)
 - [Testing](#testing)
 - [Project map](#project-map)
 
-## Current repository artifacts
+## Project status
 
-| Artifact | Path | Purpose |
+This repository is no longer just a scaffold. It already includes:
+
+- NestJS application bootstrap and runtime wiring
+- Environment validation and configuration transformation
+- TypeORM PostgreSQL integration with migrations
+- Graph and triple persistence model
+- RDF/XML serialization utilities with unit coverage
+- Test fixtures and infrastructure for upcoming protocol work
+
+The server is still pre-feature for the SPARQL 1.2 Graph Store Protocol itself: the storage foundation is present, but the protocol endpoints and end-to-end RDF handling pipeline are not wired into HTTP routes yet.
+
+## M1 foundation deliverables
+
+| Deliverable | Path | Status |
 | --- | --- | --- |
-| Application bootstrap | `/src/main.ts`, `/src/app.module.ts` | Starts NestJS app, wires config and optional DB module. |
-| Health endpoint | `/src/health/health.controller.ts` | `GET /health` liveness endpoint returning status + timestamp. |
-| Configuration model + validation | `/src/config/*` | Environment parsing, validation, defaults, payload-size parsing. |
-| Database integration | `/src/database/*` | TypeORM config, entities, and initial PostgreSQL schema migration. |
-| RDF service contract | `/src/rdf/rdf.service.ts` | Parse/serialize interface (currently placeholder methods). |
-| Test suite + fixtures | `/tests/*` | Unit/infrastructure tests plus RDF/adversarial fixtures. |
-| Inception artifacts | `/aidlc-docs/inception/*` | Requirements, architecture, risk analysis, and testing matrix docs. |
-| Runtime env template | `/.env.example` | Example environment variables for local development. |
+| Application bootstrap | `/src/main.ts`, `/src/app.module.ts` | Complete |
+| Environment schema + transforms | `/src/config/*` | Complete |
+| PostgreSQL entities | `/src/database/entities/*` | Complete |
+| Database migrations | `/src/database/migrations/*` | Complete |
+| TypeORM runtime configuration | `/src/database/database.config.ts` | Complete |
+| Health endpoint | `/src/health/health.controller.ts` | Complete |
+| RDF/XML serializer utility | `/src/rdf/serializers/rdfxml.serializer.ts` | Complete |
+| Test fixtures + infrastructure specs | `/tests/*` | Complete |
+| Inception and architecture artifacts | `/aidlc-docs/inception/*` | Complete |
 
-## Implementation status
+## Current HTTP surface
 
-- [x] NestJS application bootstrap
-- [x] Health endpoint (`GET /health`)
-- [x] Environment schema + transformation rules
-- [x] Initial PostgreSQL schema migration + entities
-- [x] Baseline test infrastructure and fixtures
-- [ ] SPARQL 1.2 Graph Store Protocol endpoint implementation
-- [ ] RDF parse/serialize implementation in `RdfService`
+| Route | Purpose |
+| --- | --- |
+| `GET /health` | Liveness check returning `{ status, timestamp }` |
+
+## What is not implemented yet
+
+- SPARQL 1.2 Graph Store Protocol routes and request lifecycle
+- `RdfService` parse/serialize integration
+- Repository and service layers for graph mutation/query flows
+- Auth enforcement, concurrency controls, and PATCH behavior at the protocol layer
 
 ## Quick start (developer)
 
@@ -76,11 +95,12 @@ curl http://localhost:3000/health
 | Variable | Required | Default | Notes |
 | --- | --- | --- | --- |
 | `GSP_DATABASE_URL` | Yes | — | PostgreSQL connection string. |
+| `GSP_DATABASE_POOL_MAX` | No | `10` | Maximum TypeORM/PostgreSQL pool size. |
 | `GSP_BASE_URL` | No | `http://localhost:3000` | Public server base URL. |
 | `GSP_AUTH_ENABLED` | No | `true` | Accepts `true/false/1/0`. |
 | `GSP_AUTH_JWT_SECRET` | Conditional | — | Required unless auth is disabled. |
 | `GSP_AUTH_API_KEYS` | No | empty | Comma-delimited API key list. |
-| `GSP_PATCH_ENABLED` | No | `true` | Accepts `true/false/1/0`. |
+| `GSP_PATCH_ENABLED` | No | `true` | Reserved for future PATCH protocol support. |
 | `GSP_OTEL_ENABLED` | No | `false` | Enables OpenTelemetry export. |
 | `GSP_OTEL_ENDPOINT` | No | `http://localhost:4318` | OTel collector endpoint. |
 | `GSP_OTEL_SERVICE_NAME` | No | `gsp-server` | OTel service name. |
@@ -106,8 +126,15 @@ curl http://localhost:3000/health
 npm test
 ```
 
+Current automated coverage includes:
+
+- configuration validation and payload-size parsing
+- database schema and migrations
+- infrastructure bootstrap and fixture availability
+- RDF/XML serialization edge cases
+
 > [!WARNING]
-> Some schema tests require a reachable PostgreSQL instance (default: `postgresql://<user>:<pass>@localhost:5432/gsp_test` or `TEST_DATABASE_URL`).
+> Some schema tests require a reachable PostgreSQL instance for the local `gsp_test` database, or an explicit `TEST_DATABASE_URL` override.
 
 <details>
   <summary>Fixture/media coverage currently present in <code>/tests/fixtures</code></summary>
@@ -130,12 +157,15 @@ src/
   main.ts
   config/
   database/
+    entities/
+    migrations/
   health/
   rdf/
+    serializers/
 tests/
   unit/
-  fixtures/
   helpers/
+  fixtures/
 aidlc-docs/
   inception/
 ```

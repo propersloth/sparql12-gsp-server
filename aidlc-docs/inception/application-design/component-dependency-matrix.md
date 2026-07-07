@@ -128,6 +128,7 @@ flowchart TD
 | **TripleRepository**   | PostgreSQL                       | Database  | Triples table (with `idx_triples_unique` dedup index)          |
 | **RdfService**         | N3.js                            | npm       | Turtle/TriG/N-Triples/N-Quads                                  |
 | **RdfService**         | rdfxml-streaming-parser          | npm       | RDF/XML parse                                                  |
+| **RdfService**         | in-house `RdfXmlSerializer`      | local     | RDF/XML serialize (Branch B chosen in GSP-005)                 |
 | **RdfService**         | jsonld + jsonld-streaming-parser | npm       | JSON-LD parse/serialize                                        |
 | **RdfService**         | sparqljs                         | npm       | SPARQL Update parse/AST                                        |
 | **RdfService**         | rdf-canonize                     | npm       | RDFC-1.0 (test harness only)                                   |
@@ -269,7 +270,7 @@ exports: [
 | ---------------------- | -------------------------------------------------------------- |
 | **DatabaseModule**     | `GSP_DATABASE_URL`                                             |
 | **AuthService**        | `GSP_AUTH_JWT_SECRET`, `GSP_AUTH_API_KEYS`                     |
-| **RdfService**         | `GSP_BASE_URL` (for Skolem IRI prefix)                         |
+| **RdfService**         | —                                                                |
 | **GraphStoreService**  | `GSP_BASE_URL` (for minted graph IRIs)                         |
 | **TracingInterceptor** | `GSP_OTEL_ENABLED`, `GSP_OTEL_ENDPOINT`                        |
 | **LoggingInterceptor** | `NODE_ENV`, `LOG_LEVEL`                                        |

@@ -1,19 +1,61 @@
 import { DataSource } from 'typeorm';
 import { InitialSchema1700000000001 } from '../../../src/database/migrations/001-initial-schema';
+import { AddSubjectType1700000000002 } from '../../../src/database/migrations/002-add-subject-type';
 
 const defaultDatabaseUrl = ['postgresql://gsp:test', 'localhost:5432/gsp_test'].join('@');
+const migrations = [InitialSchema1700000000001, AddSubjectType1700000000002];
+
+function createDataSource(activeMigrations = migrations): DataSource {
+  return new DataSource({
+    type: 'postgres',
+    url: process.env.TEST_DATABASE_URL || defaultDatabaseUrl,
+    synchronize: false,
+    logging: false,
+    migrations: activeMigrations,
+  });
+}
+
+describe('AddSubjectType Migration', () => {
+  it('backfills existing triples to subject_type U', async () => {
+    const legacyDataSource = createDataSource([InitialSchema1700000000001]);
+    await legacyDataSource.initialize();
+    await legacyDataSource.query(`DROP TABLE IF EXISTS "migrations"`);
+    await legacyDataSource.query(`DROP TABLE IF EXISTS triples`);
+    await legacyDataSource.query(`DROP TABLE IF EXISTS graphs`);
+    await legacyDataSource.runMigrations();
+
+    const [graph] = await legacyDataSource.query(
+      `INSERT INTO graphs (iri) VALUES ('http://ex.org/subject-backfill-test') RETURNING id`,
+    );
+    await legacyDataSource.query(
+      `INSERT INTO triples (graph_id, subject, predicate, object, object_type)
+       VALUES ($1, 'http://ex.org/s', 'http://ex.org/p', 'value', 'L')`,
+      [graph.id],
+    );
+    await legacyDataSource.destroy();
+
+    const migratedDataSource = createDataSource();
+    await migratedDataSource.initialize();
+    await migratedDataSource.runMigrations();
+
+    const [row] = await migratedDataSource.query(
+      `SELECT subject_type FROM triples WHERE graph_id = $1`,
+      [graph.id],
+    );
+    expect(row.subject_type).toBe('U');
+
+    await migratedDataSource.query(`DROP TABLE IF EXISTS "migrations"`);
+    await migratedDataSource.query(`DROP TABLE IF EXISTS triples`);
+    await migratedDataSource.query(`DROP TABLE IF EXISTS graphs`);
+    await migratedDataSource.destroy();
+  });
+});
 
 describe('Database Schema', () => {
   let dataSource: DataSource;
 
   beforeAll(async () => {
-    dataSource = new DataSource({
-      type: 'postgres',
-      url: process.env.TEST_DATABASE_URL || defaultDatabaseUrl,
-      synchronize: false,
-      logging: false,
-      migrations: [InitialSchema1700000000001],
-    });
+    dataSource = createDataSource();
     await dataSource.initialize();
     await dataSource.query(`DROP TABLE IF EXISTS "migrations"`);
     await dataSource.query(`DROP TABLE IF EXISTS triples`);

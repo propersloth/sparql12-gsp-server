@@ -96,7 +96,7 @@ CREATE TABLE triples (
   id          BIGSERIAL PRIMARY KEY,
   graph_id    UUID NOT NULL REFERENCES graphs(id) ON DELETE CASCADE,
   subject     TEXT NOT NULL,
-  subject_type CHAR(1) NOT NULL CHECK (subject_type IN ('U', 'B')),
+  subject_type CHAR(1) NOT NULL DEFAULT 'U' CHECK (subject_type IN ('U', 'B')),
   predicate   TEXT NOT NULL,
   object      TEXT NOT NULL,
   object_type CHAR(1) NOT NULL CHECK (object_type IN ('U', 'L', 'B')),
@@ -350,28 +350,27 @@ await this.dataSource.transaction(async (manager) => {
 
 | Format | Media Type | Parse | Serialize | Library |
 |--------|------------|-------|-----------|---------|
-| RDF/XML | application/rdf+xml | ✓ | ✓ (spike) | rdfxml-streaming-parser / TBD |
+| RDF/XML | application/rdf+xml | ✓ | ✓ | rdfxml-streaming-parser / in-house `RdfXmlSerializer` |
 | Turtle | text/turtle | ✓ | ✓ | N3.js |
 | N-Triples | application/n-triples | ✓ | ✓ | N3.js |
 | JSON-LD | application/ld+json | ✓ | ✓ | jsonld-streaming-parser / jsonld |
 | TriG | application/trig | ✓ | ✓ | N3.js |
 | N-Quads | application/n-quads | ✓ | ✓ | N3.js |
 
-> [!WARNING]
-> **RDF/XML serialization risk:** Pure-JS RDF/XML serialization options are weak. A spike task must be completed before M2 and the result recorded in this document. If no acceptable serializer exists, escalate as a scope question since RDF/XML output is a MUST (UR-FMT-01).
+> **Decision (GSP-004 / GSP-005):** Branch B is adopted. The npm package `@rdfjs/serializer-rdfxml` is not published, so RDF/XML serialization is implemented by the in-house `RdfXmlSerializer` (`src/rdf/serializers/rdfxml.serializer.ts`). Per the GSP-004 spike outcome recorded by GSP-005, unsupported RDF/XML cases (for example an unsplittable predicate QName or an XML-1.0-illegal literal character) must raise `RdfXmlSerializationException` and map to **500**, never silently drop triples or emit malformed XML.
 
 ### 7.2 RDF Merge Implementation
 
-Blank nodes are standardized apart via **skolemization on ingest**. By the time `mergeNormalized` is called, all blank-node object values are already unique `genid-{uuid}` labels assigned during `parseWithReconciliation`. The merge is therefore a pure deduplicating set-union.
+Blank nodes are standardized apart on ingest. By the time `mergeNormalized` is called, blank-node subjects and objects have already been rewritten to unique `genid-{uuid}` labels plus their `subjectType` / `objectType` discriminators. The merge is therefore a pure deduplicating set-union.
 
 ```typescript
 // On ingest (parseWithReconciliation):
 // Blank-node objects → stored as 'genid-{uuid}' label, objectType 'B'
-// Blank-node subjects → stored as Skolem IRI '{baseUrl}/.well-known/genid/{uuid}'
+// Blank-node subjects → stored as 'genid-{uuid}' label, subjectType 'B'
 
 // On merge (mergeNormalized):
 mergeNormalized(existing: NormalizedTriple[], incoming: NormalizedTriple[]): NormalizedTriple[] {
-  const key = (t) => `${t.subject}\x00${t.predicate}\x00${t.object}\x00${t.objectType}...`;
+  const key = (t) => `${t.subject}\x00${t.subjectType}\x00${t.predicate}\x00${t.object}\x00${t.objectType}...`;
   const seen = new Set(existing.map(key));
   const result = [...existing];
   for (const t of incoming) if (!seen.has(key(t))) result.push(t);
@@ -516,7 +515,7 @@ span.setAttributes({
 | Variable               | Default               | Description                                                |
 | ---------------------- | --------------------- | ---------------------------------------------------------- |
 | `GSP_DATABASE_URL`     | —                     | PostgreSQL connection string                               |
-| `GSP_BASE_URL`         | http://localhost:3000 | Base URL for minted graph URIs and Skolem IRI prefix       |
+| `GSP_BASE_URL`         | http://localhost:3000 | Base URL for minted graph URIs                             |
 | `GSP_AUTH_ENABLED`     | true                  | Enable authentication                                      |
 | `GSP_AUTH_JWT_SECRET`  | —                     | JWT signing secret                                         |
 | `GSP_AUTH_API_KEYS`    | —                     | Comma-separated API keys                                   |
