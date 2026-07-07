@@ -207,7 +207,7 @@ describe('GraphStoreController routing', () => {
         .patch(`/graph-store?graph=${encodeURIComponent('http://ex.org/patch-indirect')}`)
         .set('Content-Type', 'application/sparql-update')
         .set('If-Match', etag)
-        .send('INSERT DATA {    }');
+        .send('INSERT DATA { <http://ex.org/s2> <http://ex.org/p2> <http://ex.org/o2> }');
       expect(r.status).not.toBe(405);
       expect(r.status).toBe(200);
     });
