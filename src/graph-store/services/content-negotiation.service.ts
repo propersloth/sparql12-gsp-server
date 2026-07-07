@@ -23,8 +23,11 @@ export interface ContentTypeValidation {
 
 const N_TRIPLES_SUBJECT_PATTERN = '(?:<[^>]+>|_:[A-Za-z][A-Za-z0-9]*)';
 const N_TRIPLES_PREDICATE_PATTERN = '<[^>]+>';
-const N_TRIPLES_OBJECT_PATTERN =
-  '(?:<[^>]+>|_:[A-Za-z][A-Za-z0-9]*|"(?:[^"\\\\]|\\\\.)*"(?:@[A-Za-z]+(?:-[A-Za-z0-9]+)*|\\^\\^<[^>]+>)?)';
+// Match RDF literals in the N-Triples forms accepted here: plain string
+// literals, language-tagged literals, and typed literals.
+const N_TRIPLES_LITERAL_PATTERN =
+  '"(?:[^"\\\\]|\\\\.)*"(?:@[A-Za-z]+(?:-[A-Za-z0-9]+)*|\\^\\^<[^>]+>)?';
+const N_TRIPLES_OBJECT_PATTERN = `(?:<[^>]+>|_:[A-Za-z][A-Za-z0-9]*|${N_TRIPLES_LITERAL_PATTERN})`;
 // Require a full `<subject> <predicate> <object> .`-shaped line before treating
 // payload text as N-Triples during Content-Type inference.
 const N_TRIPLES_LINE_PATTERN = new RegExp(
@@ -147,7 +150,7 @@ export class ContentNegotiationService {
       return 'application/n-triples';
     }
 
-    if (snippet.startsWith('{') || snippet.startsWith('[')) {
+    if ((snippet.startsWith('{') || snippet.startsWith('[')) && this.looksLikeJsonLd(snippet)) {
       return 'application/ld+json';
     }
 
@@ -194,5 +197,27 @@ export class ContentNegotiationService {
   private looksLikeNTriples(value: string): boolean {
     const line = value.trim();
     return N_TRIPLES_LINE_PATTERN.test(line);
+  }
+
+  private looksLikeJsonLd(value: string): boolean {
+    try {
+      return this.containsJsonLdKeywords(JSON.parse(value));
+    } catch {
+      return false;
+    }
+  }
+
+  private containsJsonLdKeywords(value: unknown): boolean {
+    if (Array.isArray(value)) {
+      return value.some((item) => this.containsJsonLdKeywords(item));
+    }
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      if (['@context', '@id', '@type', '@graph'].some((key) => Object.hasOwn(record, key))) {
+        return true;
+      }
+      return Object.values(record).some((item) => this.containsJsonLdKeywords(item));
+    }
+    return false;
   }
 }

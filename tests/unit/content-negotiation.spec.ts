@@ -174,9 +174,9 @@ describe('ContentNegotiationService', () => {
       expect(service.inferContentType(buf)).toBe('application/rdf+xml');
     });
 
-    it('inferContentType returns application/ld+json for JSON-like content', () => {
+    it('inferContentType falls back for generic JSON content', () => {
       const buf = Buffer.from('{ "not": "rdf" }');
-      expect(service.inferContentType(buf)).toBe('application/ld+json');
+      expect(service.inferContentType(buf)).toBe('application/rdf+xml');
     });
 
     it('inferContentType returns application/ld+json for JSON-LD content', () => {
