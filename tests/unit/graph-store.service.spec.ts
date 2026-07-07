@@ -77,6 +77,7 @@ describe('GraphStoreService', () => {
 
     expect(result.status).toBe(200);
     expect(result.content).toBe('ttl');
+    expect((rdfService as any).triplesToDataset).toHaveBeenCalledWith([], null);
     expect((rdfService as any).serialize).toHaveBeenCalledTimes(1);
     expect((rdfService as any).serializeToDataset).not.toHaveBeenCalled();
   });
@@ -134,6 +135,27 @@ describe('GraphStoreService', () => {
     expect(result.status).toBe(200);
     expect(result.content).toBe('ttl');
     expect(etagService.compareStrong).toHaveBeenCalled();
+  });
+
+  it('returns 304 when a strong validator in an If-None-Match list matches', async () => {
+    const compareStrong = jest
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('bad-etag');
+      })
+      .mockImplementationOnce(() => true);
+    const { service, tripleRepository } = makeService({ compareStrong });
+
+    const result = await service.getGraph(
+      'http://ex.org/g',
+      'text/turtle',
+      'bad, W/"g-1.7.text%2Fturtle", "g-1.7.text%2Fturtle"',
+    );
+
+    expect(result.status).toBe(304);
+    expect(compareStrong).toHaveBeenNthCalledWith(1, 'bad', 'g-1', 7, 'text/turtle');
+    expect(compareStrong).toHaveBeenNthCalledWith(2, '"g-1.7.text%2Fturtle"', 'g-1', 7, 'text/turtle');
+    expect(tripleRepository.findByGraphId).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when graph is absent', async () => {

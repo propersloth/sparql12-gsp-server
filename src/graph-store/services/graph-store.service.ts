@@ -38,21 +38,28 @@ export class GraphStoreService {
     const etag = this.etagService.generate(graph.id, graph.version, match.type);
 
     if (ifNoneMatch) {
-      if (ifNoneMatch === '*') {
+      if (ifNoneMatch.trim() === '*') {
         return { content: '', contentType: match.type, etag, status: 304 };
       }
-      try {
-        if (this.etagService.compareStrong(ifNoneMatch, graph.id, graph.version, match.type)) {
-          return { content: '', contentType: match.type, etag, status: 304 };
+      const validators = ifNoneMatch.split(',');
+      for (const validator of validators) {
+        const strongValidator = validator.trim();
+        if (!strongValidator || strongValidator.startsWith('W/')) {
+          continue;
         }
-      } catch {
-        // Ignore malformed If-None-Match and continue with a normal 200 response.
+        try {
+          if (this.etagService.compareStrong(strongValidator, graph.id, graph.version, match.type)) {
+            return { content: '', contentType: match.type, etag, status: 304 };
+          }
+        } catch {
+          // Ignore malformed tokens and continue with the next validator.
+        }
       }
     }
 
     const triples = await this.tripleRepository.findByGraphId(graph.id);
     const labelIri = graph.isDefault ? null : graph.iri;
-    const dataset = this.rdfService.triplesToDataset(triples, labelIri);
+    const dataset = this.rdfService.triplesToDataset(triples, null);
     const content = QUAD_FORMATS.has(match.type)
       ? await this.rdfService.serializeToDataset(dataset, match.type, labelIri)
       : await this.rdfService.serialize(dataset, match.type);
