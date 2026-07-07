@@ -153,7 +153,7 @@ function propertyElement(
 }
 
 function splitPredicateIri(iri: string): PredicateName {
-  for (const separator of ['#', '/', ':']) {
+  for (const separator of ['#', '/']) {
     const index = iri.lastIndexOf(separator);
     if (index <= -1 || index >= iri.length - 1) {
       continue;
