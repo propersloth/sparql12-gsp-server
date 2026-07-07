@@ -12,6 +12,7 @@ import { ContentNegotiationService } from './graph-store/services/content-negoti
 import { ETagService } from './graph-store/services/etag.service';
 import { GraphRoutingService } from './graph-store/services/graph-routing.service';
 import { GraphStoreService } from './graph-store/services/graph-store.service';
+import { PatchService } from './graph-store/services/patch.service';
 import { HealthController } from './health/health.controller';
 import { RdfServiceImpl } from './rdf/rdf.service';
 
@@ -46,6 +47,7 @@ const graphStoreProviders =
         ConcurrencyService,
         ETagService,
         GraphStoreService,
+        PatchService,
       ];
 
 @Module({

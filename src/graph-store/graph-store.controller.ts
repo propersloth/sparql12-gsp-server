@@ -3,15 +3,18 @@ import {
   Delete,
   Get,
   Head,
+  Patch,
   Post,
   Put,
   Req,
   Res,
   UploadedFiles,
+  UseFilters,
   UseInterceptors,
 } from '@nestjs/common';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { PatchMediaTypeFilter } from './filters/patch-media-type.filter';
 import { ETagService } from './services/etag.service';
 import { GraphRoutingService } from './services/graph-routing.service';
 import { GraphStoreService, MultipartPart, Preconditions } from './services/graph-store.service';
@@ -126,6 +129,24 @@ export class GraphStoreController {
     await this.handleDelete(req, res);
   }
 
+  @Patch('graph/:iri')
+  @UseFilters(PatchMediaTypeFilter)
+  async patchDirect(
+    @Req() req: RequestLike,
+    @Res({ passthrough: true }) res: ResponseLike,
+  ): Promise<void> {
+    await this.handlePatch(req, res);
+  }
+
+  @Patch('graph-store')
+  @UseFilters(PatchMediaTypeFilter)
+  async patchIndirect(
+    @Req() req: RequestLike,
+    @Res({ passthrough: true }) res: ResponseLike,
+  ): Promise<void> {
+    await this.handlePatch(req, res);
+  }
+
   private async handleGet(req: RequestLike, res: ResponseLike): Promise<string> {
     const target = this.routing.resolveTarget(req);
     const result = await this.graphStore.getGraph(
@@ -185,6 +206,22 @@ export class GraphStoreController {
     const target = this.routing.resolveTarget(req);
     const result = await this.graphStore.deleteGraph(target.iri, this.getPreconditions(req));
     this.applyMutationResponse(res, result.status, result.etag);
+  }
+
+  private async handlePatch(req: RequestLike, res: ResponseLike): Promise<void> {
+    const target = this.routing.resolveTarget(req);
+    const body = await readRequestBody(req);
+    const ifMatch = req.header('if-match') ?? undefined;
+    const result = await this.graphStore.patchGraph(
+      target.iri,
+      body.toString('utf-8'),
+      req.header('content-type') ?? '',
+      ifMatch,
+    );
+    res.status(result.status);
+    if (result.etag) {
+      res.setHeader('ETag', result.etag);
+    }
   }
 
   private getPreconditions(req: RequestLike): Preconditions {

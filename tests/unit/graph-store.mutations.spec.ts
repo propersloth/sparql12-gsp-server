@@ -68,6 +68,7 @@ describe('GraphStoreService mutations', () => {
       graphRepository as any,
       tripleRepository as any,
       configService as any,
+      {} as any,
     );
 
     return {

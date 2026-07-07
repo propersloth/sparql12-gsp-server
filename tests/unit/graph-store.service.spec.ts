@@ -61,6 +61,8 @@ describe('GraphStoreService', () => {
       get: jest.fn(() => undefined),
     };
 
+    const patchService = {};
+
     const service = new GraphStoreService(
       dataSource as any,
       rdfService as any,
@@ -71,6 +73,7 @@ describe('GraphStoreService', () => {
       graphRepository as any,
       tripleRepository as any,
       configService as any,
+      patchService as any,
     );
 
     return {

@@ -73,15 +73,19 @@ export function patchGraph(
   app: INestApplication,
   iri: string,
   patchBody: string,
-  options: { ifMatch?: string } = {},
+  ifMatchOrOptions: string | { ifMatch?: string } = {},
 ) {
+  const ifMatch =
+    typeof ifMatchOrOptions === 'string'
+      ? ifMatchOrOptions
+      : ifMatchOrOptions.ifMatch;
   const req = request(app.getHttpServer())
     .patch(`/graph/${encodeURIComponent(iri)}`)
     .set('Content-Type', 'application/sparql-update')
     .send(patchBody);
 
-  if (options.ifMatch) {
-    req.set('If-Match', options.ifMatch);
+  if (ifMatch) {
+    req.set('If-Match', ifMatch);
   }
 
   return req;

@@ -1,10 +1,13 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotAcceptableException,
   NotFoundException,
   PreconditionFailedException,
   UnsupportedMediaTypeException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
@@ -16,6 +19,8 @@ import { ConcurrencyService } from './concurrency.service';
 import { ContentNegotiationService } from './content-negotiation.service';
 import { CANONICAL_MUTATION_FORMAT, ETagService } from './etag.service';
 import { GraphRoutingService } from './graph-routing.service';
+import { PatchService } from './patch.service';
+import { PatchUnsupportedMediaTypeException } from '../exceptions/patch-unsupported-media-type.exception';
 
 const QUAD_FORMATS = new Set([
   'application/trig',
@@ -46,6 +51,7 @@ export class GraphStoreService {
     private readonly graphRepository: GraphRepository,
     private readonly tripleRepository: TripleRepository,
     private readonly configService: ConfigService,
+    private readonly patchService: PatchService,
   ) {}
 
   async getGraph(
@@ -257,6 +263,93 @@ export class GraphStoreService {
         status: 201,
         location: mintedIri,
         etag: this.etagService.generate(graph.id, version, CANONICAL_MUTATION_FORMAT),
+      };
+    });
+  }
+
+  /**
+   * PATCH: incremental modification via SPARQL 1.1 Update.
+   * iri === null targets the default graph (?default, D-2).
+   * Check order follows OQ-14: existence → If-Match present → content-type →
+   * parse/scope → (in-txn) state compare → apply → version.
+   */
+  async patchGraph(
+    iri: string | null,
+    body: string,
+    contentType: string,
+    ifMatch?: string,
+  ): Promise<{ status: 200; etag: string }> {
+    let targetIri: string | null = iri;
+    let lockIri: string = DEFAULT_GRAPH_IRI;
+    if (iri !== null) {
+      const v = this.routing.validateIri(iri);
+      if (!v.valid) throw new BadRequestException(v.error);
+      targetIri = v.normalizedIri!;
+      lockIri = v.normalizedIri!;
+    }
+
+    // ── 1. EXISTENCE (OQ-14: must precede all other checks) ──────────────────
+    // The default-graph row is always present (OQ-13), so a default-graph PATCH
+    // always clears this gate.
+    const existsBeforeLock = await this.graphRepository.findByIriOrDefault(targetIri);
+    if (!existsBeforeLock) throw new NotFoundException('graph not found');
+
+    // ── 2. PRECONDITION PRESENT ───────────────────────────────────────────────
+    if (!ifMatch) {
+      throw new HttpException('If-Match required', HttpStatus.PRECONDITION_REQUIRED);
+    }
+
+    // ── 3. CONTENT-TYPE ───────────────────────────────────────────────────────
+    if (contentType !== 'application/sparql-update') {
+      throw new PatchUnsupportedMediaTypeException();
+    }
+
+    // ── 4. PARSE & SCOPE ──────────────────────────────────────────────────────
+    const parseResult = this.patchService.validate(body);
+    if (!parseResult.valid) {
+      throw new BadRequestException(`Invalid SPARQL Update: ${parseResult.error}`);
+    }
+    const parsed = this.patchService.parse(body);
+    const scopeResult = this.patchService.scopeToGraph(parsed.operations, targetIri);
+    if (!scopeResult.valid) {
+      throw new UnprocessableEntityException(scopeResult.error);
+    }
+
+    // ── 5. ATOMIC CAS ─────────────────────────────────────────────────────────
+    return this.dataSource.transaction(async (m) => {
+      await this.concurrency.lock(m, lockIri);
+
+      // Re-read inside the lock so we see the version that was current when locked.
+      const graph = await this.graphRepository.findByIriOrDefaultInTxn(m, targetIri);
+      if (!graph) throw new NotFoundException('graph not found');
+
+      // ── 5a. STATE COMPARE ────────────────────────────────────────────────────
+      if (ifMatch !== '*' && !this.etagService.compareState(ifMatch, graph.id, graph.version)) {
+        throw new PreconditionFailedException('If-Match ETag does not match');
+      }
+
+      // ── 5b. APPLY (H3 fix: read through the same connection as the transaction)
+      const existing = await this.tripleRepository.findByGraphIdInTxn(m, graph.id);
+      const updated = await this.patchService.apply(existing, parsed, targetIri);
+
+      await this.tripleRepository.deleteByGraphIdInTxn(m, graph.id);
+      if (updated.length > 0) {
+        await this.tripleRepository.insertInTxn(m, graph.id, updated);
+      }
+
+      // ── 5c. VERSION ──────────────────────────────────────────────────────────
+      const newVersion = await this.graphRepository.incrementVersionInTxn(m, graph.id);
+
+      // v3 (H1 fix): a PATCH that empties a NAMED graph deletes its row —
+      // "a named graph exists iff it holds ≥ 1 triple." The default graph is
+      // exempt (OQ-13): its row always survives regardless of triple count.
+      if (updated.length === 0 && !graph.isDefault) {
+        await this.graphRepository.deleteInTxn(m, graph.id);
+      }
+
+      return {
+        status: 200 as const,
+        etag: this.etagService.generate(graph.id, newVersion, CANONICAL_MUTATION_FORMAT),
       };
     });
   }
