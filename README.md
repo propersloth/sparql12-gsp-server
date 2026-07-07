@@ -3,12 +3,13 @@
 NestJS + TypeScript implementation of a SPARQL 1.2 Graph Store Protocol server.
 
 > [!IMPORTANT]
-> Milestone M1 Foundation is complete. The repository now contains the application foundation, configuration system, PostgreSQL schema, migrations, and test scaffolding. Graph Store Protocol request handling is the next major implementation phase.
+> Milestone M1 Foundation and M2 Data Layer are complete. The repository now contains the application foundation, configuration system, PostgreSQL schema/migrations, RDF service, repository layer, and concurrency/ETag services. Graph Store Protocol request handling is the next major implementation phase.
 
 ## Table of contents
 
 - [Project status](#project-status)
 - [M1 foundation deliverables](#m1-foundation-deliverables)
+- [M2 data layer deliverables](#m2-data-layer-deliverables)
 - [Current HTTP surface](#current-http-surface)
 - [What is not implemented yet](#what-is-not-implemented-yet)
 - [Quick start (developer)](#quick-start-developer)
@@ -25,10 +26,13 @@ This repository is no longer just a scaffold. It already includes:
 - Environment validation and configuration transformation
 - TypeORM PostgreSQL integration with migrations
 - Graph and triple persistence model
+- RDF parsing/serialization service implementations
+- Graph and triple repositories
+- Concurrency lock and ETag services
 - RDF/XML serialization utilities with unit coverage
 - Test fixtures and infrastructure for upcoming protocol work
 
-The server is still pre-feature for the SPARQL 1.2 Graph Store Protocol itself: the storage foundation is present, but the protocol endpoints and end-to-end RDF handling pipeline are not wired into HTTP routes yet.
+The server is still pre-feature for the SPARQL 1.2 Graph Store Protocol itself: the data and service layer foundation is present, but protocol endpoints and the HTTP request lifecycle are not wired yet.
 
 ## M1 foundation deliverables
 
@@ -44,6 +48,18 @@ The server is still pre-feature for the SPARQL 1.2 Graph Store Protocol itself: 
 | Test fixtures + infrastructure specs | `/tests/*` | Complete |
 | Inception and architecture artifacts | `/aidlc-docs/inception/*` | Complete |
 
+## M2 data layer deliverables
+
+| Deliverable | Path | Status |
+| --- | --- | --- |
+| RDF service contract + implementation | `/src/rdf/rdf.service.ts` | Complete |
+| RDF exception model | `/src/rdf/rdf.exceptions.ts` | Complete |
+| Graph repository | `/src/graph-store/repositories/graph.repository.ts` | Complete |
+| Triple repository | `/src/graph-store/repositories/triple.repository.ts` | Complete |
+| Concurrency service | `/src/graph-store/services/concurrency.service.ts` | Complete |
+| ETag service + invalid etag exception | `/src/graph-store/services/etag.service.ts`, `/src/graph-store/exceptions/invalid-etag.exception.ts` | Complete |
+| Data layer unit coverage | `/tests/unit/**/*` | Complete |
+
 ## Current HTTP surface
 
 | Route | Purpose |
@@ -53,9 +69,8 @@ The server is still pre-feature for the SPARQL 1.2 Graph Store Protocol itself: 
 ## What is not implemented yet
 
 - SPARQL 1.2 Graph Store Protocol routes and request lifecycle
-- `RdfService` parse/serialize integration
-- Repository and service layers for graph mutation/query flows
-- Auth enforcement, concurrency controls, and PATCH behavior at the protocol layer
+- HTTP controller integration for RDF/service/repository layers
+- Auth enforcement and request-level protocol behavior (including PATCH semantics)
 
 ## Quick start (developer)
 
@@ -117,7 +132,8 @@ curl http://localhost:3000/health
 | `npm run build` | Compile TypeScript to `/dist`. |
 | `npm run start` | Run compiled app from `/dist/main.js`. |
 | `npm run start:dev` | Run app directly from TypeScript (`ts-node`). |
-| `npm test` | Execute Jest tests in-band. |
+| `npm test` | Execute Jest tests in-band (schema migration suite excluded by default). |
+| `npm run test:schema` | Execute the DB-backed schema migration suite only. |
 | `npm run test:cov` | Execute Jest tests with coverage output. |
 
 ## Testing
@@ -133,8 +149,12 @@ Current automated coverage includes:
 - infrastructure bootstrap and fixture availability
 - RDF/XML serialization edge cases
 
-> [!WARNING]
-> Some schema tests require a reachable PostgreSQL instance for the local `gsp_test` database, or an explicit `TEST_DATABASE_URL` override.
+> [!NOTE]
+> `npm test` intentionally excludes `tests/unit/database/schema.spec.ts` because that suite requires a reachable PostgreSQL instance.
+> To run the schema suite explicitly:
+> ```bash
+> TEST_DATABASE_URL=postgresql://<username>:<password>@localhost:5432/gsp_test npm run test:schema
+> ```
 
 <details>
   <summary>Fixture/media coverage currently present in <code>/tests/fixtures</code></summary>
