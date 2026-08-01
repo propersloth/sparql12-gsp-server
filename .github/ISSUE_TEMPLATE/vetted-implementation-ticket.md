@@ -11,10 +11,29 @@ observability, compliance-test, and Docker tickets) the standard of quality
 for issues here: nothing left to invent, real code instead of prose
 descriptions of code, and explicit dependency/troubleshooting information.
 
-Not every issue needs every section below — a one-line bugfix doesn't need a
-TDD workflow diagram. Use this for real units of work: new capabilities,
-non-trivial fixes, anything where "what does done look like" isn't obvious
-from the title.
+SCOPE THE DEPTH TO THE COMPLEXITY. This is not a fill-in-every-section form —
+using the full template on a small task is as much a mistake as skipping
+sections on a big one. Rough guide:
+
+  - New capability, non-trivial feature, or anything where "what does done
+    look like" isn't obvious from the title → full template: TDD workflow
+    diagram, code-complete implementation plan, test files with real
+    assertions, troubleshooting table.
+  - Investigation / research task (answer a question, decide between
+    options) → Description, Context, a plain checklist of what to
+    investigate, and a decision record at the end. No TDD workflow, no code
+    — there's no code to write yet.
+  - Review / audit task (security review, docs pass, verify existing
+    behavior) → Description, Context, a concrete checklist of specific
+    things to check (name them — "verify constant-time comparison on X," not
+    "review for issues"). Skip the TDD/test-file sections unless the review
+    itself produces new tests.
+  - Straightforward fix or config change with an obvious definition of done
+    → Description and Acceptance Criteria are enough. Everything else is
+    noise that makes the real signal (what changed, why) harder to find.
+
+When in doubt, undersize rather than oversize — a thin ticket that's easy to
+read beats a full-template ticket where most sections say "N/A."
 
 Delete this comment block and any unused sections before submitting.
 -->
