@@ -4,6 +4,10 @@ import {
   IsBoolean,
   IsString,
   IsOptional,
+  IsIn,
+  Min,
+  Max,
+  IsNumber,
   ValidateIf,
   Matches,
 } from 'class-validator';
@@ -64,6 +68,19 @@ export class GspEnvironmentVariables {
   @IsOptional()
   @IsString()
   otelServiceName?: string = 'gsp-server';
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? undefined : parseFloat(value)))
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  otelSampleRatio?: number = 1.0;
+
+  @IsOptional()
+  @IsIn(['trace', 'debug', 'info', 'warn', 'error', 'fatal'], {
+    message: 'GSP_LOG_LEVEL must be one of: trace, debug, info, warn, error, fatal',
+  })
+  logLevel?: string = 'info';
 
   @IsOptional()
   @Matches(/^\d+(\.\d+)?(MB|GB|KB)?$/i, {
