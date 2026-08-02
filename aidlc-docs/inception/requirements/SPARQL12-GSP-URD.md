@@ -509,7 +509,7 @@ When a dataset payload is supplied to a single-graph `PUT`/`POST`, the triples w
 - *Trace: RFC 6585 (428); HTTP (412); OQ-14; supersedes the SHOULD in former UR-PATCH-05*
 
 #### UR-CC-05 — Atomic check-and-apply (MUST)
-- The compare-and-swap MUST be realised inside a **single store transaction** (decision OQ-05): read current revision → verify `If-Match` → apply mutation → increment revision, all committed atomically. The store's transaction isolation provides the test-and-set; no concurrent write can interleave between validation and application.
+- The compare-and-swap MUST be realised inside a **single store transaction** (decision OQ-05): read current revision → verify `If-Match` → apply mutation → increment revision, all committed atomically. Test-and-set safety comes from an explicit, transaction-scoped Postgres advisory lock (`pg_advisory_xact_lock`, keyed on a hash of the graph IRI — see `ConcurrencyService`), acquired before any read/verify/apply/increment step; no concurrent write can interleave between validation and application because a second writer blocks on the lock itself, independent of the transaction's isolation level.
 - A losing writer in a race MUST receive **`412`**, never a silent overwrite.
 - *Trace: NFR-02; OQ-05; HTTP*
 
@@ -537,7 +537,7 @@ When a dataset payload is supplied to a single-graph `PUT`/`POST`, the triples w
 | **NFR-08** | Committed graph state (and the revision counter) survives process restarts. | MUST | — |
 
 > [!NOTE]
-> **Residual architecture decision (OQ-05, non-blocking):** pick the concrete isolation level backing NFR-02 — read-committed with row/document locking on the graph record, or serializable.
+> **OQ-05 isolation level, resolved:** the concrete isolation level backing NFR-02 is Postgres's default, **READ COMMITTED** — never overridden anywhere in the codebase (verified, not assumed). This is sufficient because concurrency safety here doesn't come from the isolation level at all: it comes from an explicit `pg_advisory_xact_lock` (transaction-scoped, keyed on a hash of the graph IRI — see `ConcurrencyService.lock()`), acquired before every read/verify/apply/increment cycle on a given graph. The lock alone fully serializes concurrent writers to the same graph, regardless of isolation level. SERIALIZABLE would add real cost (serialization-failure retries, reduced throughput) for zero additional correctness on this path, since the lock already prevents the race SERIALIZABLE would otherwise be needed to prevent. No code change made — this ratifies the status quo. Confirmed the existing racing-writer test (G9) already validates this under current (READ COMMITTED + advisory lock) conditions.
 
 ---
 
@@ -560,7 +560,7 @@ The build is acceptance-ready when:
 ## 11. Open questions for inception
 
 > [!IMPORTANT]
-> **Status: all open questions resolved.** OQ-01–OQ-11c via the inception Q&A sessions; OQ-12–OQ-14 added and resolved during the final expert review. The only residual is a non-blocking architecture detail (isolation level under OQ-05). All decisions are folded into the requirements, assumptions, and risks above.
+> **Status: all open questions resolved, including the OQ-05 residual.** OQ-01–OQ-11c via the inception Q&A sessions; OQ-12–OQ-14 added and resolved during the final expert review; OQ-05's isolation-level residual resolved by verifying the actual running implementation (see §9's note above and `risk-analysis.md`'s RISK-07 entry). All decisions are folded into the requirements, assumptions, and risks above.
 
 - **OQ-01 — RESOLVED.** Conformance scope = all five core verbs MUST be implemented; all MUST/MUST NOT honoured; all SHOULDs honoured or waived (ASM-01). No core method may be omitted. PATCH stays optional (E10).
 - **OQ-02 — PROMOTED → UR-FMT-02.** Extended-format support is now a requirement: JSON-LD, TriG, N-Quads mandatory alongside the trio. Residual sub-questions:
@@ -568,7 +568,7 @@ The build is acceptance-ready when:
   - **OQ-02b — RESOLVED.** JSON-LD follows dataset semantics: top-level `@graph` maps to the target; `@id`-scoped named graphs are subject to strict reconciliation (UR-FMT-04).
 - **OQ-03 — RESOLVED.** Minted graph IRI = server-controlled opaque UUID under the store namespace (`{store}/graphs/{uuid}`), non-guessable (UR-POST-04).
 - **OQ-04 — RESOLVED.** Empty = absent for named graphs; a named graph exists iff it has ≥ 1 triple (ASM-04, UR-GET-01, UR-PUT-03/04).
-- **OQ-05 — RESOLVED.** Atomic compare-and-swap via a single store transaction (NFR-02 / UR-CC-05). Residual (architecture, non-blocking): pick the concrete isolation level.
+- **OQ-05 — RESOLVED (including the isolation-level residual).** Atomic compare-and-swap via a single store transaction (NFR-02 / UR-CC-05), realized with a `pg_advisory_xact_lock`. Isolation level: READ COMMITTED (Postgres default, verified never overridden) — sufficient because the advisory lock, not the isolation level, is what serializes concurrent writers to a graph. See §9's note above for the full rationale.
 - **OQ-06 — RESOLVED.** Default graph addressable only via `?default` (no direct URI form) — UR-ID-03.
 - **OQ-07 — RESOLVED.** Pluggable auth enforcement point emitting `401`/`403` with a configurable scheme and shipped default; policy and "system-critical" graph set are deployment config (UR-SEC-03).
 - **OQ-08 — RESOLVED.** Well-formed unhostable `?graph` IRI: `404` when merely absent, `403` when the store refuses the namespace on create (UR-ID-05).
