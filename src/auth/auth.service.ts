@@ -73,16 +73,40 @@ export class AuthService {
     return identity.roles.includes(_role);
   }
 
+  // NOTE: AppModule wires ConfigModule.forRoot({ isGlobal: true }) with no
+  // `load` factory (see src/database/database.config.ts for the same flat
+  // access pattern), so ConfigService only resolves the literal env var
+  // names below - it does NOT resolve dotted paths like 'auth.jwt.secret'
+  // into a nested object. GspConfiguration.fromEnvironment (src/config/
+  // configuration.ts) builds that nested/validated shape but is never fed
+  // back into the live ConfigService, so it cannot be relied on here.
   private get secret(): string {
-    return this.config.get<string>('auth.jwt.secret') ?? '';
+    const value = this.config.get<string>('GSP_AUTH_JWT_SECRET');
+    if (!value) {
+      // Fail closed: signing or verifying with an empty-string HMAC key is
+      // equivalent to no authentication at all, since the key is trivially
+      // guessable (it's the empty string) by anyone who has read the
+      // source - which is everyone, since this repo is public.
+      throw new Error(
+        'GSP_AUTH_JWT_SECRET is not configured. Refusing to sign or verify tokens with an empty secret.',
+      );
+    }
+    return value;
   }
 
   private get issuer(): string {
-    return this.config.get<string>('auth.jwt.issuer') ?? 'gsp-server';
+    return this.config.get<string>('GSP_AUTH_JWT_ISSUER') ?? 'gsp-server';
   }
 
   private get apiKeys(): string[] {
-    return this.config.get<string[]>('auth.apiKeys') ?? [];
+    const raw = this.config.get<string>('GSP_AUTH_API_KEYS');
+    if (!raw) {
+      return [];
+    }
+    return raw
+      .split(',')
+      .map((key) => key.trim())
+      .filter((key) => key.length > 0);
   }
 
   private signToken(payload: TokenPayload): string {
