@@ -2,6 +2,7 @@
 
 NestJS + TypeScript implementation of a SPARQL 1.2 Graph Store Protocol server.
 
+[![CI](https://github.com/propersloth/sparql12-gsp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/propersloth/sparql12-gsp-server/actions/workflows/ci.yml)
 [![SPARQL 1.2 GSP Compliance](https://img.shields.io/badge/SPARQL12-GSP-brightgreen?style=flat-square)](https://www.w3.org/TR/sparql12-graph-store-protocol/)
 [![NestJS](https://img.shields.io/badge/NestJS-v10-red?style=flat-square&logo=nestjs)](https://nestjs.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-v5-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
