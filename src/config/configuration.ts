@@ -14,7 +14,8 @@ export class GspConfiguration implements IGspConfiguration {
   };
   auth!: { enabled: boolean; jwt: { secret: string; issuer: string }; apiKeys: string[] };
   observability!: {
-    otel: { enabled: boolean; endpoint: string; serviceName: string };
+    otel: { enabled: boolean; endpoint: string; serviceName: string; sampleRatio: number };
+    logging: { level: string };
   };
 
   static async fromEnvironment(
@@ -31,6 +32,8 @@ export class GspConfiguration implements IGspConfiguration {
       otelEnabled: env.GSP_OTEL_ENABLED,
       otelEndpoint: env.GSP_OTEL_ENDPOINT,
       otelServiceName: env.GSP_OTEL_SERVICE_NAME,
+      otelSampleRatio: env.GSP_OTEL_SAMPLE_RATIO,
+      logLevel: env.GSP_LOG_LEVEL,
       maxPayloadSize: env.GSP_MAX_PAYLOAD_SIZE,
       streamThreshold: env.GSP_STREAM_THRESHOLD,
       // GSP_DEFAULT_GRAPH_PERSISTENT deliberately not mapped (retired)
@@ -65,6 +68,10 @@ export class GspConfiguration implements IGspConfiguration {
         enabled: env.otelEnabled ?? false,
         endpoint: env.otelEndpoint ?? 'http://localhost:4318',
         serviceName: env.otelServiceName ?? 'gsp-server',
+        sampleRatio: env.otelSampleRatio ?? 1.0,
+      },
+      logging: {
+        level: env.logLevel ?? 'info',
       },
     };
   }

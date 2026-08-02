@@ -19,11 +19,16 @@ export interface OtelConfig {
   enabled: boolean;
   endpoint: string;
   serviceName: string;
+  sampleRatio: number;
+}
+
+export interface LoggingConfig {
+  level: string;
 }
 
 export interface GspConfiguration {
   database: DatabaseConfig;
   server: ServerConfig;
   auth: AuthConfig;
-  observability: { otel: OtelConfig };
+  observability: { otel: OtelConfig; logging: LoggingConfig };
 }
