@@ -41,8 +41,47 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # tsc's own incremental cache (tsconfig.json has "incremental": true).
+      # Verified locally where this actually lands: tsc writes
+      # ./tsconfig.build.tsbuildinfo at the project root, NOT inside dist/
+      # -- it does not follow outDir. Both dist/ and the buildinfo file
+      # MUST be cached and restored together: tsc's incremental check
+      # trusts the buildinfo's source-file hashes and does not itself
+      # verify the emitted output files still exist, so a restored
+      # buildinfo without a matching dist/ (e.g. dist/ deleted but the
+      # buildinfo kept, as happened locally while testing this) makes tsc
+      # skip re-emitting files it wrongly believes are already current --
+      # confirmed this exact failure mode locally before writing this.
+      # Keyed on the SHA with a restore-keys fallback to the most recent
+      # cache available -- tsc's incremental compiler diffs against
+      # whatever it restores and only recompiles what actually changed,
+      # so an approximate (not exact-lockfile-match) restore is correct
+      # here, unlike the dependency cache above.
+      - name: Cache TypeScript incremental build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            dist
+            tsconfig.build.tsbuildinfo
+          key: ${{ runner.os }}-tsbuildinfo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tsbuildinfo-
+
       - name: Build
         run: npm run build
+
+      # ts-jest's compile cache (jest.config.js sets cacheDirectory to
+      # .jest-cache explicitly, rather than the OS-temp-dir default, so it's
+      # a stable path to cache). Same restore-keys reasoning as above --
+      # ts-jest recompiles per-file on a cache miss for that file, so a
+      # near-match restore still saves most of the work.
+      - name: Cache ts-jest compile cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .jest-cache
+          key: ${{ runner.os }}-jest-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-jest-
 
       - name: Test
         run: npm test
@@ -80,6 +119,18 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Same ts-jest compile cache as the test job (schema.spec.ts runs
+      # through Jest/ts-jest too, via npm run test:schema) -- separate cache
+      # key/scope so this job's smaller, DB-focused test doesn't evict or
+      # conflict with the test job's cache entry.
+      - name: Cache ts-jest compile cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .jest-cache
+          key: ${{ runner.os }}-jest-schema-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-jest-schema-
 
       - name: Run schema migration tests
         env:
