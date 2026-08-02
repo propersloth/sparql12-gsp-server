@@ -10,31 +10,49 @@ import { OptionalAuthGuard } from '../../../src/auth/guards/optional-auth.guard'
 import { AuthService } from '../../../src/auth/auth.service';
 import { ConfigService } from '@nestjs/config';
 
+// Matches the *actual* runtime shape: AppModule wires ConfigModule.forRoot()
+// with no `load` factory, so ConfigService only ever resolves the flat
+// GSP_* env var names (see src/database/database.config.ts for the same
+// pattern) - never dotted paths like 'auth.jwt.secret'. A previous version
+// of this mock used dotted keys, which matched a bug in auth.service.ts
+// (config.get('auth.jwt.secret')) instead of the real ConfigService
+// behavior, so the bug went undetected. See tests/unit/config/
+// configuration.spec.ts for the (separate, unused-by-the-live-app)
+// GspConfiguration mapping layer.
+function buildConfigService(
+  overrides: Record<string, string | undefined> = {},
+): ConfigService {
+  const values: Record<string, string | undefined> = {
+    GSP_AUTH_JWT_SECRET: 'test-secret',
+    GSP_AUTH_JWT_ISSUER: 'test-issuer',
+    GSP_AUTH_API_KEYS: 'test-api-key-1,test-api-key-2',
+    ...overrides,
+  };
+  return { get: jest.fn((key: string) => values[key]) } as unknown as ConfigService;
+}
+
 describe('Auth Guards', () => {
   let jwtGuard: JwtAuthGuard;
   let apiKeyGuard: ApiKeyGuard;
   let optionalGuard: OptionalAuthGuard;
   let authService: AuthService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+  async function buildModule(
+    configOverrides: Record<string, string | undefined> = {},
+  ): Promise<TestingModule> {
+    return Test.createTestingModule({
       providers: [
         AuthService,
         JwtAuthGuard,
         ApiKeyGuard,
         OptionalAuthGuard,
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string) => ({
-              'auth.jwt.secret': 'test-secret',
-              'auth.jwt.issuer': 'test-issuer',
-              'auth.apiKeys': ['test-api-key-1', 'test-api-key-2'],
-            }[key])),
-          },
-        },
+        { provide: ConfigService, useValue: buildConfigService(configOverrides) },
       ],
     }).compile();
+  }
+
+  beforeEach(async () => {
+    const module = await buildModule();
 
     authService  = module.get(AuthService);
     jwtGuard     = module.get(JwtAuthGuard);
@@ -163,6 +181,126 @@ describe('Auth Guards', () => {
 
     it('rejects unknown API key', async () => {
       expect((await authService.validateApiKey('unknown')).valid).toBe(false);
+    });
+
+    it('rejects malformed token (wrong number of segments)', async () => {
+      await expect(authService.verifyToken('only-one-segment')).rejects.toThrow(
+        'Malformed token',
+      );
+    });
+
+    it('rejects a token with an unsupported header (alg confusion attempt)', async () => {
+      const forgedHeader = Buffer.from(
+        JSON.stringify({ alg: 'none', typ: 'JWT' }),
+      ).toString('base64url');
+      const forgedBody = Buffer.from(JSON.stringify({ id: 'attacker' })).toString(
+        'base64url',
+      );
+      const forgedToken = `${forgedHeader}.${forgedBody}.deadbeef`;
+
+      await expect(authService.verifyToken(forgedToken)).rejects.toThrow(
+        'Unsupported token header',
+      );
+    });
+
+    it('rejects an expired token', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      const token = authService.generateToken({ id: 'u1', roles: [], claims: {} });
+
+      jest.setSystemTime(new Date('2026-01-01T02:00:00Z')); // +2h, past the 1h exp
+      await expect(authService.verifyToken(token)).rejects.toThrow('Expired token');
+      jest.useRealTimers();
+    });
+
+    it('rejects a token signed with a different issuer', async () => {
+      const otherIssuerModule = await buildModule({ GSP_AUTH_JWT_ISSUER: 'other-issuer' });
+      const otherIssuerService: AuthService = otherIssuerModule.get(AuthService);
+
+      const token = otherIssuerService.generateToken({ id: 'u1', roles: [], claims: {} });
+
+      // Same secret, different configured issuer -> signature verifies, iss check fails.
+      await expect(authService.verifyToken(token)).rejects.toThrow('Bad issuer');
+    });
+
+    it('parses comma-separated API keys with surrounding whitespace and blank entries', async () => {
+      const module = await buildModule({
+        GSP_AUTH_API_KEYS: ' key-a , key-b ,,',
+      });
+      const service: AuthService = module.get(AuthService);
+
+      expect((await service.validateApiKey('key-a')).valid).toBe(true);
+      expect((await service.validateApiKey('key-b')).valid).toBe(true);
+      expect((await service.validateApiKey('')).valid).toBe(false);
+    });
+
+    it('does not throw and does not authenticate a different-length API key', async () => {
+      // Regression guard for the constant-time comparison: a length
+      // mismatch must resolve to `false`, not throw or short-circuit into
+      // a match.
+      await expect(
+        authService.validateApiKey('test-api-key-1-but-much-longer'),
+      ).resolves.toEqual({ valid: false });
+    });
+  });
+
+  describe('AuthService: JWT secret configuration (regression for issue #51)', () => {
+    // Prior to this fix, AuthService read `config.get('auth.jwt.secret')`
+    // (a dotted path), but the app's real ConfigModule.forRoot() (see
+    // src/app.module.ts) has no `load` factory, so that lookup always
+    // returned undefined and AuthService silently signed/verified every
+    // token with an empty-string HMAC key - a full authentication bypass
+    // for anyone who read the (now-public) source. These tests pin the
+    // fail-closed behavior going forward.
+
+    it('refuses to sign a token when GSP_AUTH_JWT_SECRET is not configured', async () => {
+      const module = await buildModule({ GSP_AUTH_JWT_SECRET: undefined });
+      const service: AuthService = module.get(AuthService);
+
+      expect(() => service.generateToken({ id: 'u1', roles: [], claims: {} })).toThrow(
+        'GSP_AUTH_JWT_SECRET is not configured',
+      );
+    });
+
+    it('refuses to verify a token when GSP_AUTH_JWT_SECRET is not configured', async () => {
+      // Generate a well-formed token while the secret *is* configured, then
+      // verify it through a service instance with the secret removed - this
+      // isolates the "secret missing" failure from unrelated parse errors.
+      const signedModule = await buildModule();
+      const signedService: AuthService = signedModule.get(AuthService);
+      const token = signedService.generateToken({ id: 'u1', roles: [], claims: {} });
+
+      const module = await buildModule({ GSP_AUTH_JWT_SECRET: undefined });
+      const service: AuthService = module.get(AuthService);
+
+      await expect(service.verifyToken(token)).rejects.toThrow(
+        'GSP_AUTH_JWT_SECRET is not configured',
+      );
+    });
+
+    it('surfaces the missing-secret failure through JwtAuthGuard as a generic 401 (no internal detail leaked)', async () => {
+      const module = await buildModule({ GSP_AUTH_JWT_SECRET: undefined });
+      const guard: JwtAuthGuard = module.get(JwtAuthGuard);
+
+      await expect(
+        guard.canActivate(
+          createMockContext({ headers: { authorization: 'Bearer a.b.c' } }),
+        ),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('reads the real GSP_AUTH_JWT_SECRET / GSP_AUTH_JWT_ISSUER / GSP_AUTH_API_KEYS env-derived keys (not a dotted "auth.jwt.secret" path)', async () => {
+      const config = buildConfigService();
+      const module = await Test.createTestingModule({
+        providers: [AuthService, { provide: ConfigService, useValue: config }],
+      }).compile();
+      const service: AuthService = module.get(AuthService);
+
+      const token = service.generateToken({ id: 'u1', roles: [], claims: {} });
+      const identity = await service.verifyToken(token);
+
+      expect(identity.id).toBe('u1');
+      expect(config.get).toHaveBeenCalledWith('GSP_AUTH_JWT_SECRET');
+      expect(config.get).not.toHaveBeenCalledWith('auth.jwt.secret');
     });
   });
 });
