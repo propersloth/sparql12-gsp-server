@@ -22,7 +22,18 @@
       "Bash(gh pr create *)",
       "Bash(gh pr view *)",
       "Bash(gh issue comment *)",
-      "Bash(gh issue view *)"
+      "Bash(gh issue view *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git checkout *)",
+      "Bash(git rebase *)",
+      "Bash(git merge-base *)",
+      "Bash(git cherry-pick *)",
+      "Bash(npm audit)",
+      "Bash(npm audit fix)",
+      "Bash(mkdir -p *)",
+      "Bash(gh issue create *)",
+      "Bash(gh issue close *)"
     ]
   }
 }
