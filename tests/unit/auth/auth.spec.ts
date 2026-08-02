@@ -7,6 +7,7 @@ import { ExecutionContext, UnauthorizedException, ForbiddenException } from '@ne
 import { JwtAuthGuard } from '../../../src/auth/guards/jwt-auth.guard';
 import { ApiKeyGuard } from '../../../src/auth/guards/api-key.guard';
 import { OptionalAuthGuard } from '../../../src/auth/guards/optional-auth.guard';
+import { JwtOrApiKeyGuard } from '../../../src/auth/guards/jwt-or-api-key.guard';
 import { AuthService } from '../../../src/auth/auth.service';
 import { ConfigService } from '@nestjs/config';
 
@@ -35,6 +36,7 @@ describe('Auth Guards', () => {
   let jwtGuard: JwtAuthGuard;
   let apiKeyGuard: ApiKeyGuard;
   let optionalGuard: OptionalAuthGuard;
+  let jwtOrApiKeyGuard: JwtOrApiKeyGuard;
   let authService: AuthService;
 
   async function buildModule(
@@ -46,6 +48,7 @@ describe('Auth Guards', () => {
         JwtAuthGuard,
         ApiKeyGuard,
         OptionalAuthGuard,
+        JwtOrApiKeyGuard,
         { provide: ConfigService, useValue: buildConfigService(configOverrides) },
       ],
     }).compile();
@@ -58,6 +61,7 @@ describe('Auth Guards', () => {
     jwtGuard     = module.get(JwtAuthGuard);
     apiKeyGuard  = module.get(ApiKeyGuard);
     optionalGuard = module.get(OptionalAuthGuard);
+    jwtOrApiKeyGuard = module.get(JwtOrApiKeyGuard);
   });
 
   function createMockContext(options: {
@@ -160,6 +164,94 @@ describe('Auth Guards', () => {
       expect(await apiKeyGuard.canActivate(
         createMockContext({ headers: { 'x-api-key': 'test-api-key-1' } })
       )).toBe(true);
+    });
+  });
+
+  describe('JwtOrApiKeyGuard (issue #46: wired to mutation routes)', () => {
+    it('no credentials at all → UnauthorizedException (401)', async () => {
+      await expect(
+        jwtOrApiKeyGuard.canActivate(createMockContext({ headers: {}, method: 'PUT' })),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('Authorization header present but invalid → ForbiddenException (403)', async () => {
+      await expect(
+        jwtOrApiKeyGuard.canActivate(
+          createMockContext({
+            headers: { authorization: 'Bearer not-a-real-token' },
+            method: 'PUT',
+          }),
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('X-API-Key header present but invalid → ForbiddenException (403)', async () => {
+      await expect(
+        jwtOrApiKeyGuard.canActivate(
+          createMockContext({ headers: { 'x-api-key': 'bad-key' }, method: 'PUT' }),
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('valid Bearer token → true, sets request.identity', async () => {
+      const token = authService.generateToken({ id: 'u1', roles: ['writer'], claims: {} });
+      const request = { headers: { authorization: `Bearer ${token}` }, method: 'PUT' };
+      const context = createMockContext(request);
+      (context.switchToHttp().getRequest as () => typeof request) = () => request;
+
+      expect(await jwtOrApiKeyGuard.canActivate(context)).toBe(true);
+    });
+
+    it('valid API key → true', async () => {
+      expect(
+        await jwtOrApiKeyGuard.canActivate(
+          createMockContext({ headers: { 'x-api-key': 'test-api-key-1' }, method: 'PUT' }),
+        ),
+      ).toBe(true);
+    });
+
+    it('GSP_AUTH_ENABLED=false → no-ops (true) even with no credentials', async () => {
+      const module = await buildModule({ GSP_AUTH_ENABLED: 'false' });
+      const guard: JwtOrApiKeyGuard = module.get(JwtOrApiKeyGuard);
+
+      expect(
+        await guard.canActivate(createMockContext({ headers: {}, method: 'PUT' })),
+      ).toBe(true);
+    });
+  });
+
+  describe('OptionalAuthGuard: GSP_AUTH_ENABLED gating (issue #46)', () => {
+    it('GSP_AUTH_ENABLED=false → no-ops (true) for mutations with no credentials', async () => {
+      const module = await buildModule({ GSP_AUTH_ENABLED: 'false' });
+      const guard: OptionalAuthGuard = module.get(OptionalAuthGuard);
+
+      expect(
+        await guard.canActivate(createMockContext({ headers: {}, method: 'POST' })),
+      ).toBe(true);
+    });
+
+    it('GSP_AUTH_ENABLED unset (default true) → still enforces auth for mutations', async () => {
+      await expect(
+        optionalGuard.canActivate(createMockContext({ headers: {}, method: 'POST' })),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('AuthService.isEnabled() (issue #46)', () => {
+    it('defaults to true when GSP_AUTH_ENABLED is unset', () => {
+      expect(authService.isEnabled()).toBe(true);
+    });
+
+    it.each(['false', '0'])('is false when GSP_AUTH_ENABLED=%s', async (value) => {
+      const module = await buildModule({ GSP_AUTH_ENABLED: value });
+      const service: AuthService = module.get(AuthService);
+      expect(service.isEnabled()).toBe(false);
+    });
+
+    it.each(['true', '1'])('is true when GSP_AUTH_ENABLED=%s', async (value) => {
+      const module = await buildModule({ GSP_AUTH_ENABLED: value });
+      const service: AuthService = module.get(AuthService);
+      expect(service.isEnabled()).toBe(true);
     });
   });
 
