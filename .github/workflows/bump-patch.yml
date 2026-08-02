@@ -1,0 +1,51 @@
+name: Auto-bump
+
+# Fires on every push to main -- i.e. every merged PR plus any direct push,
+# both of which this repo has actually used. Bumps package.json's x.x.N
+# only -- a lightweight version counter, not a release process. This repo
+# is deliberately pre-1.0.0 and untagged (see the "live demonstration"
+# release strategy) -- no tags, no GitHub Releases, no npm publish, no
+# CHANGELOG here. Adapted from propersloth/parallax-threejs's
+# bump-patch.yml, not copied: that repo bumps a dual plugin.json/
+# marketplace.json manifest and needs a separate PAT because its main is
+# branch-protected. Neither applies here -- this repo only has
+# package.json, and `main` has no branch protection (confirmed via the
+# GitHub API), so the default GITHUB_TOKEN can push the bump directly.
+#
+# [skip ci] in the bump commit message prevents this push from
+# re-triggering CI needlessly; the actor check below is the guard against
+# the bump workflow re-triggering *itself* in a loop (push event has no
+# path filter that could do this instead, since it always touches
+# package.json).
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          CURRENT=$(jq -r .version package.json)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+          jq --arg v "$NEW_VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
+          git push
