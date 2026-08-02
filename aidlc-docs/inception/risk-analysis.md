@@ -197,6 +197,8 @@ await withAdvisoryLock(graphId, async () => {
 });
 ```
 
+**Isolation level (OQ-05 residual, resolved):** READ COMMITTED — Postgres's default, verified never overridden anywhere in the codebase. Sufficient because the advisory lock above, not the transaction's isolation level, is what serializes concurrent writers to a graph: a second writer blocks on `pg_advisory_xact_lock` before it can even read the graph's current revision, so no interleaving is possible regardless of isolation level. SERIALIZABLE would add real cost (serialization-failure retries, reduced throughput) for zero additional correctness here. Full rationale: `requirements/SPARQL12-GSP-URD.md` §9.
+
 ---
 
 ### RISK-08: Validator/Negotiation Correctness
