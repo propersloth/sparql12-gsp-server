@@ -4,13 +4,13 @@ NestJS + TypeScript implementation of a SPARQL 1.2 Graph Store Protocol server.
 
 [![CI](https://github.com/propersloth/sparql12-gsp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/propersloth/sparql12-gsp-server/actions/workflows/ci.yml)
 [![SPARQL 1.2 GSP Compliance](https://img.shields.io/badge/SPARQL12-GSP-brightgreen?style=flat-square)](https://www.w3.org/TR/sparql12-graph-store-protocol/)
-[![NestJS](https://img.shields.io/badge/NestJS-v10-red?style=flat-square&logo=nestjs)](https://nestjs.com)
+[![NestJS](https://img.shields.io/badge/NestJS-v11-red?style=flat-square&logo=nestjs)](https://nestjs.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-v5-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-v15-blue?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
-[![License](https://img.shields.io/badge/License-MIT-orange?style=flat-square)](#license)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-v16-blue?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/License-MIT-orange?style=flat-square)](./LICENSE)
 
 > [!IMPORTANT]
-> Milestones M1 Foundation, M2 Data Layer, M3 Core Logic, and M4 HTTP Layer are complete. The server now handles the full set of Graph Store Protocol HTTP methods (GET, HEAD, PUT, POST, DELETE, PATCH) across both direct and indirect graph addressing modes, with structured logging, ETag/Vary header injection, a standardized exception filter, and auth guards enforced on every route (mutations require valid credentials; reads stay open).
+> Milestones M1 Foundation, M2 Data Layer, M3 Core Logic, and M4 HTTP Layer are complete, and M5 Integration & Observability is in progress. The server handles the full set of Graph Store Protocol HTTP methods (GET, HEAD, PUT, POST, DELETE, PATCH) across both direct and indirect graph addressing modes, with structured logging, full OpenTelemetry tracing/metrics export, ETag/Vary header injection, a standardized exception filter, auth guards enforced on every route (mutations require valid credentials; reads stay open), and a full G1–G9 URD compliance test suite. The remaining M5 work is production build/Docker packaging (GSP-042, tracked in [#35](https://github.com/propersloth/sparql12-gsp-server/issues/35)).
 
 ## Background: the semantic web ecosystem
 
@@ -68,8 +68,10 @@ This repository is a functioning SPARQL 1.2 Graph Store Protocol server. Milesto
 - NestJS application bootstrap, configuration, and PostgreSQL persistence (graphs, triples, migrations)
 - RDF parsing and serialization across all six supported media types, with transactional repositories and concurrency/ETag services
 - The full GSP HTTP controller (GET, HEAD, PUT, POST, DELETE, PATCH) with content negotiation, graph routing, and SPARQL 1.1 Update–based PATCH
-- Auth service and guards (JWT, API key, optional read bypass) wired to every controller route via `@UseGuards`, gated by `GSP_AUTH_ENABLED`, plus structured logging, OTel-ready tracing, ETag/`Vary` header injection, and a standardized exception filter
+- Auth service and guards (JWT, API key, optional read bypass) wired to every controller route via `@UseGuards`, gated by `GSP_AUTH_ENABLED`, plus structured logging, ETag/`Vary` header injection, and a standardized exception filter
 - Unit and integration coverage for all of the above
+
+M5 (Integration & Observability) is in progress: structured logging + full OpenTelemetry SDK bootstrap (tracing and metrics export) and the full G1–G9 URD compliance suite are both done; production build/Docker packaging (GSP-042) is the remaining open item, tracked in [#35](https://github.com/propersloth/sparql12-gsp-server/issues/35).
 
 <details>
 <summary><strong>M1 — Foundation</strong></summary>
@@ -130,12 +132,26 @@ This repository is a functioning SPARQL 1.2 Graph Store Protocol server. Milesto
 | Optional auth guard (read bypass) | `/src/auth/guards/optional-auth.guard.ts` |
 | Combined JWT-or-API-key guard, wired to mutation routes | `/src/auth/guards/jwt-or-api-key.guard.ts` |
 | Structured logging interceptor | `/src/common/interceptors/logging.interceptor.ts` |
-| OTel-ready tracing interceptor | `/src/common/interceptors/tracing.interceptor.ts` |
+| Tracing interceptor | `/src/common/interceptors/tracing.interceptor.ts` |
 | ETag + `Vary: Accept` interceptor | `/src/common/interceptors/etag.interceptor.ts` |
 | GSP exception filter (named error-to-status map, `WWW-Authenticate` on 401) | `/src/common/filters/gsp-exception.filter.ts` |
 | Method-not-allowed filter | `/src/common/filters/method-not-allowed.filter.ts` |
 | M4 unit coverage | `/tests/unit/auth/auth.spec.ts`, `/tests/unit/common/*`, `/tests/unit/interceptors.spec.ts` |
 | M4 integration coverage | `/tests/integration/controllers.spec.ts`, `/tests/integration/headers.spec.ts`, `/tests/integration/auth-enforcement.spec.ts` |
+
+</details>
+
+<details>
+<summary><strong>M5 — Integration &amp; Observability (in progress)</strong></summary>
+
+| Deliverable | Path |
+| --- | --- |
+| OpenTelemetry SDK bootstrap (tracing + metrics export, auto-instrumentation) | `/src/tracing.ts` |
+| Standalone OTel tracer/propagator service | `/src/common/logging/otel.service.ts` |
+| Pino structured logger + logging module wiring | `/src/common/logging/pino.logger.ts`, `/src/common/logging/logging.module.ts` |
+| Full G1–G9 URD compliance suite (DB-backed) | `/tests/integration/compliance.spec.ts` |
+| Observability unit + integration coverage | `/tests/unit/observability.spec.ts`, `/tests/integration/observability.integration.spec.ts` |
+| **Open:** production build/Docker packaging (GSP-042) | tracked in [#35](https://github.com/propersloth/sparql12-gsp-server/issues/35) |
 
 </details>
 
@@ -168,7 +184,7 @@ Each method is available on both a **direct** path (`/graph/:iri`) and an **indi
 
 ## What is not implemented yet
 
-- OpenTelemetry observability pipeline (tracing interceptor stub in place; full OTel SDK initialization and exporter configuration is M5)
+- Production build/Docker packaging (GSP-042 — the last open M5 item; see [#35](https://github.com/propersloth/sparql12-gsp-server/issues/35))
 
 ## Quick start (developer)
 
@@ -212,11 +228,14 @@ curl http://localhost:3000/health
 | `GSP_BASE_URL` | No | `http://localhost:3000` | Public server base URL. |
 | `GSP_AUTH_ENABLED` | No | `true` | Accepts `true/false/1/0`. |
 | `GSP_AUTH_JWT_SECRET` | Conditional | — | Required unless auth is disabled. |
+| `GSP_AUTH_JWT_ISSUER` | No | `gsp-server` | Expected/issued JWT `iss` claim. |
 | `GSP_AUTH_API_KEYS` | No | empty | Comma-delimited API key list. |
 | `GSP_PATCH_ENABLED` | No | `true` | Controls whether `Accept-Patch` is advertised in OPTIONS responses. |
 | `GSP_OTEL_ENABLED` | No | `false` | Enables OpenTelemetry export. |
 | `GSP_OTEL_ENDPOINT` | No | `http://localhost:4318` | OTel collector endpoint. |
 | `GSP_OTEL_SERVICE_NAME` | No | `gsp-server` | OTel service name. |
+| `GSP_OTEL_SAMPLE_RATIO` | No | `1.0` | Trace sample ratio, `0`–`1`. |
+| `GSP_LOG_LEVEL` | No | `info` | One of `trace`, `debug`, `info`, `warn`, `error`, `fatal`. |
 | `GSP_MAX_PAYLOAD_SIZE` | No | `100MB` | Supports `KB`, `MB`, `GB`. |
 | `GSP_STREAM_THRESHOLD` | No | `10MB` | Supports `KB`, `MB`, `GB`. |
 
@@ -230,8 +249,9 @@ curl http://localhost:3000/health
 | `npm run build` | Compile TypeScript to `/dist`. |
 | `npm run start` | Run compiled app from `/dist/main.js`. |
 | `npm run start:dev` | Run app directly from TypeScript (`ts-node`). |
-| `npm test` | Execute Jest tests in-band (schema migration suite excluded by default). |
+| `npm test` | Execute Jest tests in-band (DB-backed schema and compliance suites excluded by default). |
 | `npm run test:schema` | Execute the DB-backed schema migration suite only. |
+| `npm run test:compliance` | Execute the DB-backed G1–G9 URD compliance suite only. |
 | `npm run test:cov` | Execute Jest tests with coverage output. |
 
 ## Testing
@@ -257,12 +277,15 @@ Current automated coverage includes:
 - HTTP interceptors (logging, tracing, ETag and Vary injection)
 - GSP exception filter (named exception-to-status mapping)
 - controller routing and HTTP method dispatch (direct, indirect, minted)
+- structured logging and OpenTelemetry tracing/propagation (`OtelService`, W3C traceparent extraction/injection)
+- full G1–G9 URD compliance suite, including PATCH atomicity and concurrency-control acceptance criteria
 
 > [!NOTE]
-> `npm test` intentionally excludes `tests/unit/database/schema.spec.ts` because that suite requires a reachable PostgreSQL instance.
-> To run the schema suite explicitly:
+> `npm test` intentionally excludes `tests/unit/database/schema.spec.ts` and `tests/integration/compliance.spec.ts` because both suites require a reachable PostgreSQL instance.
+> To run them explicitly:
 > ```bash
 > TEST_DATABASE_URL=postgresql://<username>:<password>@localhost:5432/gsp_test npm run test:schema
+> TEST_DATABASE_URL=postgresql://<username>:<password>@localhost:5432/gsp_test npm run test:compliance
 > ```
 
 <details>
@@ -284,11 +307,13 @@ Current automated coverage includes:
 src/
   app.module.ts
   main.ts
+  tracing.ts
   auth/
     guards/
   common/
     filters/
     interceptors/
+    logging/
   config/
   database/
     entities/
