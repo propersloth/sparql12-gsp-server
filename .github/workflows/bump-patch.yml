@@ -1,28 +1,33 @@
 name: Auto-bump
 
-# Fires on every push to main -- i.e. every merged PR plus any direct push,
-# both of which this repo has actually used. Bumps package.json's x.x.N
-# only -- a lightweight version counter, not a release process. This repo
-# is deliberately pre-1.0.0 and untagged (see the "live demonstration"
-# release strategy) -- no tags, no GitHub Releases, no npm publish, no
-# CHANGELOG here. Adapted from propersloth/parallax-threejs's
-# bump-patch.yml, not copied: that repo bumps a dual plugin.json/
-# marketplace.json manifest and needs a separate PAT because its main is
-# branch-protected. Neither applies here -- this repo only has
-# package.json, and `main` has no branch protection (confirmed via the
-# GitHub API), so the default GITHUB_TOKEN can push the bump directly.
+# Fires on every push to main -- which, now that main requires a PR for
+# every change (see the repository ruleset), means every merged PR. Bumps
+# package.json's x.x.N only -- a lightweight version counter, not a release
+# process. This repo is deliberately pre-1.0.0 and untagged (see the "live
+# demonstration" release strategy) -- no tags, no GitHub Releases, no npm
+# publish, no CHANGELOG here.
 #
-# [skip ci] in the bump commit message prevents this push from
-# re-triggering CI needlessly; the actor check below is the guard against
-# the bump workflow re-triggering *itself* in a loop (push event has no
-# path filter that could do this instead, since it always touches
-# package.json).
+# Goes through the same PR + required-status-checks pipeline as everything
+# else, rather than carving out a bot-specific bypass in the ruleset --
+# "every change through a PR" was the explicit point of adding it. Opens a
+# branch + PR and lets `gh pr merge --auto` wait for CI, instead of pushing
+# directly (which the ruleset now rejects regardless of actor).
+#
+# Deliberately NOT [skip ci] on the bump commit -- ci.yml's pull_request
+# checks (actionlint/test/schema-test/compliance-test) must actually run
+# and pass on this PR, since they're required by the ruleset before it can
+# merge. [skip ci] would silently deadlock the auto-merge forever.
+#
+# The actor guard is what actually prevents a loop: the auto-merged bump
+# PR produces its own push event to main, whose actor is github-actions[bot]
+# (it performed the merge), so that re-trigger is skipped here.
 on:
   push:
     branches: [main]
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   bump:
@@ -41,11 +46,24 @@ jobs:
           NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
           jq --arg v "$NEW_VERSION" '.version = $v' package.json > tmp.json && mv tmp.json package.json
           echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "branch=chore/bump-patch-$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Commit
+      - name: Commit and push to a new branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${{ steps.bump.outputs.branch }}"
           git add package.json
-          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
-          git push
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }}"
+          git push origin "${{ steps.bump.outputs.branch }}"
+
+      - name: Open PR and enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --title "chore: bump version to ${{ steps.bump.outputs.new_version }}" \
+            --body "Automated patch bump, no functional change. Auto-merges once required checks pass." \
+            --base main \
+            --head "${{ steps.bump.outputs.branch }}"
+          gh pr merge "${{ steps.bump.outputs.branch }}" --auto --squash
