@@ -61,6 +61,23 @@ export class AuthService {
     };
   }
 
+  /**
+   * GSP_AUTH_ENABLED gate (issue #46). Defaults to enabled - only an
+   * explicit 'false'/'0' turns enforcement off, mirroring the semantics of
+   * GspConfiguration/GspEnvironmentVariables' authEnabled transform (see
+   * src/config/configuration.schema.ts) even though that mapping layer is
+   * not itself wired into the live ConfigService (see the NOTE on `secret`
+   * below). Guards call this directly so GSP_AUTH_ENABLED=false disables
+   * enforcement without any route-level code change.
+   */
+  isEnabled(): boolean {
+    const raw = this.config.get<string | boolean>('GSP_AUTH_ENABLED');
+    if (raw === undefined || raw === null || raw === '') {
+      return true;
+    }
+    return !(raw === false || raw === 'false' || raw === '0');
+  }
+
   async hasRole(identity: Identity, _role?: string): Promise<boolean> {
     if (!identity) {
       return false;

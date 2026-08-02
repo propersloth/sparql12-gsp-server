@@ -5,6 +5,7 @@ import { GraphStoreController } from '../../src/graph-store/graph-store.controll
 import { GraphStoreService } from '../../src/graph-store/services/graph-store.service';
 import { ETagService } from '../../src/graph-store/services/etag.service';
 import { GraphRoutingService } from '../../src/graph-store/services/graph-routing.service';
+import { disabledAuthProviders } from '../helpers/auth-test.helper';
 
 describe('GraphStoreController mutation wiring', () => {
   let app: INestApplication;
@@ -24,6 +25,7 @@ describe('GraphStoreController mutation wiring', () => {
         GraphRoutingService,
         ETagService,
         { provide: GraphStoreService, useValue: graphStore },
+        ...disabledAuthProviders(),
       ],
     }).compile();
 

@@ -9,6 +9,10 @@ export class OptionalAuthGuard implements CanActivate {
   constructor(private readonly authService: AuthService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (!this.authService.isEnabled()) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest<RequestLike>();
 
     if (SAFE_METHODS.has((request.method ?? 'GET').toUpperCase())) {

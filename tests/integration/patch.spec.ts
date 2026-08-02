@@ -13,6 +13,7 @@ import { GraphStoreService } from '../../src/graph-store/services/graph-store.se
 import { ETagService } from '../../src/graph-store/services/etag.service';
 import { GraphRoutingService } from '../../src/graph-store/services/graph-routing.service';
 import { PatchUnsupportedMediaTypeException } from '../../src/graph-store/exceptions/patch-unsupported-media-type.exception';
+import { disabledAuthProviders } from '../helpers/auth-test.helper';
 
 describe('PATCH /graph/{iri}', () => {
   let app: INestApplication;
@@ -35,6 +36,7 @@ describe('PATCH /graph/{iri}', () => {
         GraphRoutingService,
         ETagService,
         { provide: GraphStoreService, useValue: graphStore },
+        ...disabledAuthProviders(),
       ],
     }).compile();
 
@@ -190,6 +192,7 @@ describe('PATCH /graph-store?default (v3, D-2)', () => {
         GraphRoutingService,
         ETagService,
         { provide: GraphStoreService, useValue: graphStore },
+        ...disabledAuthProviders(),
       ],
     }).compile();
 

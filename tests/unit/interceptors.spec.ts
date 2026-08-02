@@ -262,7 +262,7 @@ describe('Interceptors', () => {
 
     beforeEach(() => {
       filter = new GspExceptionFilter();
-      mockResponse = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      mockResponse = { status: jest.fn().mockReturnThis(), json: jest.fn(), setHeader: jest.fn() };
       mockRequest = { url: '/graph/http://ex.org/test' };
     });
 
@@ -302,10 +302,25 @@ describe('Interceptors', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(401);
     });
 
+    it('401 carries a WWW-Authenticate header (UR-SEC-01, issue #46)', () => {
+      const exception = { name: 'UnauthorizedException', message: 'Unauthorized' };
+      filter.catch(exception, createMockHost(exception));
+      expect(mockResponse.setHeader).toHaveBeenCalledWith(
+        'WWW-Authenticate',
+        expect.any(String),
+      );
+    });
+
     it('should map ForbiddenException → 403', () => {
       const exception = { name: 'ForbiddenException', message: 'Forbidden' };
       filter.catch(exception, createMockHost(exception));
       expect(mockResponse.status).toHaveBeenCalledWith(403);
+    });
+
+    it('403 does not carry a WWW-Authenticate header', () => {
+      const exception = { name: 'ForbiddenException', message: 'Forbidden' };
+      filter.catch(exception, createMockHost(exception));
+      expect(mockResponse.setHeader).not.toHaveBeenCalled();
     });
 
     it('should map PreconditionFailedException → 412', () => {

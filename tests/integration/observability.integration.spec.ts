@@ -21,6 +21,7 @@ import { LoggingInterceptor } from '../../src/common/interceptors/logging.interc
 import { PinoLogger } from '../../src/common/logging/pino.logger';
 import { OtelService } from '../../src/common/logging/otel.service';
 import { getGraph, putGraph } from '../helpers/request.helper';
+import { disabledAuthProviders } from '../helpers/auth-test.helper';
 
 interface GraphEntry {
   content: string;
@@ -87,6 +88,7 @@ describe('Observability Integration', () => {
             }),
         },
         { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+        ...disabledAuthProviders(),
       ],
     }).compile();
 

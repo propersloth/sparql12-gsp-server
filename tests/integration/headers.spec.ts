@@ -13,6 +13,7 @@ import { ETagService } from '../../src/graph-store/services/etag.service';
 import { GraphRoutingService } from '../../src/graph-store/services/graph-routing.service';
 import { ETagInterceptor } from '../../src/common/interceptors/etag.interceptor';
 import { getGraph, putGraph } from '../helpers/request.helper';
+import { disabledAuthProviders } from '../helpers/auth-test.helper';
 
 interface GraphEntry {
   content: string;
@@ -65,6 +66,7 @@ describe('HTTP response headers', () => {
         GraphRoutingService,
         ETagService,
         { provide: GraphStoreService, useValue: graphStore },
+        ...disabledAuthProviders(),
       ],
     }).compile();
 

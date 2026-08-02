@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './auth/auth.module';
 import { CommonModule } from './common/common.module';
 import { LoggingModule } from './common/logging/logging.module';
 import { createTypeOrmOptions } from './database/database.config';
@@ -57,6 +58,7 @@ const graphStoreProviders =
     ConfigModule.forRoot({ isGlobal: true }),
     LoggingModule,
     CommonModule,
+    AuthModule,
     ...databaseImports,
     ...graphStoreImports,
   ],
