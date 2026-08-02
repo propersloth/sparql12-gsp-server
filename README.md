@@ -10,7 +10,7 @@ NestJS + TypeScript implementation of a SPARQL 1.2 Graph Store Protocol server.
 [![License](https://img.shields.io/badge/License-MIT-orange?style=flat-square)](#license)
 
 > [!IMPORTANT]
-> Milestones M1 Foundation, M2 Data Layer, M3 Core Logic, and M4 HTTP Layer are complete. The server now handles the full set of Graph Store Protocol HTTP methods (GET, HEAD, PUT, POST, DELETE, PATCH) across both direct and indirect graph addressing modes, with structured logging, ETag/Vary header injection, a standardized exception filter, and pluggable auth guards.
+> Milestones M1 Foundation, M2 Data Layer, M3 Core Logic, and M4 HTTP Layer are complete. The server now handles the full set of Graph Store Protocol HTTP methods (GET, HEAD, PUT, POST, DELETE, PATCH) across both direct and indirect graph addressing modes, with structured logging, ETag/Vary header injection, a standardized exception filter, and auth guards enforced on every route (mutations require valid credentials; reads stay open).
 
 ## Background: the semantic web ecosystem
 
@@ -68,7 +68,7 @@ This repository is a functioning SPARQL 1.2 Graph Store Protocol server. Milesto
 - NestJS application bootstrap, configuration, and PostgreSQL persistence (graphs, triples, migrations)
 - RDF parsing and serialization across all six supported media types, with transactional repositories and concurrency/ETag services
 - The full GSP HTTP controller (GET, HEAD, PUT, POST, DELETE, PATCH) with content negotiation, graph routing, and SPARQL 1.1 Update–based PATCH
-- Auth service and pluggable guards (JWT, API key, optional read bypass), structured logging, OTel-ready tracing, ETag/`Vary` header injection, and a standardized exception filter
+- Auth service and guards (JWT, API key, optional read bypass) wired to every controller route via `@UseGuards`, gated by `GSP_AUTH_ENABLED`, plus structured logging, OTel-ready tracing, ETag/`Vary` header injection, and a standardized exception filter
 - Unit and integration coverage for all of the above
 
 <details>
@@ -128,13 +128,14 @@ This repository is a functioning SPARQL 1.2 Graph Store Protocol server. Milesto
 | JWT guard | `/src/auth/guards/jwt-auth.guard.ts` |
 | API-key guard | `/src/auth/guards/api-key.guard.ts` |
 | Optional auth guard (read bypass) | `/src/auth/guards/optional-auth.guard.ts` |
+| Combined JWT-or-API-key guard, wired to mutation routes | `/src/auth/guards/jwt-or-api-key.guard.ts` |
 | Structured logging interceptor | `/src/common/interceptors/logging.interceptor.ts` |
 | OTel-ready tracing interceptor | `/src/common/interceptors/tracing.interceptor.ts` |
 | ETag + `Vary: Accept` interceptor | `/src/common/interceptors/etag.interceptor.ts` |
-| GSP exception filter (named error-to-status map) | `/src/common/filters/gsp-exception.filter.ts` |
+| GSP exception filter (named error-to-status map, `WWW-Authenticate` on 401) | `/src/common/filters/gsp-exception.filter.ts` |
 | Method-not-allowed filter | `/src/common/filters/method-not-allowed.filter.ts` |
 | M4 unit coverage | `/tests/unit/auth/auth.spec.ts`, `/tests/unit/common/*`, `/tests/unit/interceptors.spec.ts` |
-| M4 integration coverage | `/tests/integration/controllers.spec.ts`, `/tests/integration/headers.spec.ts` |
+| M4 integration coverage | `/tests/integration/controllers.spec.ts`, `/tests/integration/headers.spec.ts`, `/tests/integration/auth-enforcement.spec.ts` |
 
 </details>
 
@@ -167,7 +168,6 @@ Each method is available on both a **direct** path (`/graph/:iri`) and an **indi
 
 ## What is not implemented yet
 
-- Auth route enforcement (guards implemented; `@UseGuards` wiring to controller routes is pending)
 - OpenTelemetry observability pipeline (tracing interceptor stub in place; full OTel SDK initialization and exporter configuration is M5)
 
 ## Quick start (developer)
@@ -253,7 +253,7 @@ Current automated coverage includes:
 - graph routing (direct path, indirect query parameter, IRI validation)
 - graph store service (GET, HEAD, PUT, POST, DELETE, PATCH operations)
 - PATCH scope enforcement and SPARQL 1.1 Update application
-- auth guards (JWT, API-key, optional read bypass)
+- auth guards (JWT, API-key, optional read bypass, combined mutation guard) and route enforcement (`@UseGuards` wiring, `GSP_AUTH_ENABLED` gating)
 - HTTP interceptors (logging, tracing, ETag and Vary injection)
 - GSP exception filter (named exception-to-status mapping)
 - controller routing and HTTP method dispatch (direct, indirect, minted)

@@ -17,6 +17,7 @@ import { buildMintedGraphIri, GraphStoreService } from '../../src/graph-store/se
 import { ETagService } from '../../src/graph-store/services/etag.service';
 import { GraphRoutingService } from '../../src/graph-store/services/graph-routing.service';
 import { getGraph, putGraph } from '../helpers/request.helper';
+import { disabledAuthProviders } from '../helpers/auth-test.helper';
 
 // ── Stateful in-memory store ──────────────────────────────────────────────────
 // Allows tests that PUT/POST and then read back to work without a real DB.
@@ -103,6 +104,7 @@ describe('GraphStoreController routing', () => {
         GraphRoutingService,
         ETagService,
         { provide: GraphStoreService, useValue: graphStore },
+        ...disabledAuthProviders(),
       ],
     }).compile();
 

@@ -8,6 +8,7 @@ interface GspError {
 interface HttpResponse {
   status(code: number): this;
   json(body: unknown): void;
+  setHeader(name: string, value: string): void;
 }
 
 @Catch()
@@ -69,6 +70,12 @@ export class GspExceptionFilter implements ExceptionFilter {
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       error = exception.name;
+    }
+
+    if (status === HttpStatus.UNAUTHORIZED) {
+      // UR-SEC-01 / RFC 9110: a 401 MUST carry WWW-Authenticate. Both
+      // schemes are advertised since either satisfies JwtOrApiKeyGuard.
+      response.setHeader('WWW-Authenticate', 'Bearer realm="gsp-server", ApiKey realm="gsp-server"');
     }
 
     response.status(status).json({

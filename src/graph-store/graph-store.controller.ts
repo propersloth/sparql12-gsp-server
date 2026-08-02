@@ -21,11 +21,14 @@ import {
   Res,
   UploadedFiles,
   UseFilters,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { JwtOrApiKeyGuard } from '../auth/guards/jwt-or-api-key.guard';
+import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard';
 import { MethodNotAllowedFilter } from '../common/filters/method-not-allowed.filter';
 import { MethodNotAllowedException } from './exceptions/method-not-allowed.exception';
 import { PatchMediaTypeFilter } from './filters/patch-media-type.filter';
@@ -80,6 +83,7 @@ export class GraphStoreController {
   }
 
   @Get('graph/:iri')
+  @UseGuards(OptionalAuthGuard)
   async getDirect(
     @Req() req: RequestLike,
     @Res({ passthrough: true }) res: ResponseLike,
@@ -88,6 +92,7 @@ export class GraphStoreController {
   }
 
   @Get('graph-store')
+  @UseGuards(OptionalAuthGuard)
   async getIndirect(
     @Req() req: RequestLike,
     @Res({ passthrough: true }) res: ResponseLike,
@@ -96,6 +101,7 @@ export class GraphStoreController {
   }
 
   @Head('graph/:iri')
+  @UseGuards(OptionalAuthGuard)
   async headDirect(
     @Req() req: RequestLike,
     @Res({ passthrough: true }) res: ResponseLike,
@@ -104,6 +110,7 @@ export class GraphStoreController {
   }
 
   @Head('graph-store')
+  @UseGuards(OptionalAuthGuard)
   async headIndirect(
     @Req() req: RequestLike,
     @Res({ passthrough: true }) res: ResponseLike,
@@ -112,6 +119,7 @@ export class GraphStoreController {
   }
 
   @Put('graph/:iri')
+  @UseGuards(JwtOrApiKeyGuard)
   async putDirect(
     @Req() req: RequestLike,
     @Res({ passthrough: true }) res: ResponseLike,
@@ -120,6 +128,7 @@ export class GraphStoreController {
   }
 
   @Put('graph-store')
+  @UseGuards(JwtOrApiKeyGuard)
   async putIndirect(
     @Req() req: RequestLike,
     @Res({ passthrough: true }) res: ResponseLike,
@@ -128,6 +137,7 @@ export class GraphStoreController {
   }
 
   @Post('graph/:iri')
+  @UseGuards(JwtOrApiKeyGuard)
   @UseInterceptors(AnyFilesInterceptor({ storage: memoryStorage() }))
   async postDirect(
     @Req() req: RequestLike,
@@ -138,6 +148,7 @@ export class GraphStoreController {
   }
 
   @Post('graph-store')
+  @UseGuards(JwtOrApiKeyGuard)
   @UseInterceptors(AnyFilesInterceptor({ storage: memoryStorage() }))
   async postIndirect(
     @Req() req: RequestLike,
@@ -148,6 +159,7 @@ export class GraphStoreController {
   }
 
   @Delete('graph/:iri')
+  @UseGuards(JwtOrApiKeyGuard)
   async deleteDirect(
     @Req() req: RequestLike,
     @Res({ passthrough: true }) res: ResponseLike,
@@ -156,6 +168,7 @@ export class GraphStoreController {
   }
 
   @Delete('graph-store')
+  @UseGuards(JwtOrApiKeyGuard)
   async deleteIndirect(
     @Req() req: RequestLike,
     @Res({ passthrough: true }) res: ResponseLike,
@@ -164,6 +177,7 @@ export class GraphStoreController {
   }
 
   @Patch('graph/:iri')
+  @UseGuards(JwtOrApiKeyGuard)
   @UseFilters(PatchMediaTypeFilter)
   async patchDirect(
     @Req() req: RequestLike,
@@ -173,6 +187,7 @@ export class GraphStoreController {
   }
 
   @Patch('graph-store')
+  @UseGuards(JwtOrApiKeyGuard)
   @UseFilters(PatchMediaTypeFilter)
   async patchIndirect(
     @Req() req: RequestLike,
@@ -232,6 +247,7 @@ export class GraphStoreController {
   // methods used by /graph/:iri.
 
   @Get('graphs/:uuid')
+  @UseGuards(OptionalAuthGuard)
   async getMintedGraph(
     @Param('uuid') uuid: string,
     @Req() req: RequestLike,
@@ -251,6 +267,7 @@ export class GraphStoreController {
   }
 
   @Head('graphs/:uuid')
+  @UseGuards(OptionalAuthGuard)
   async headMintedGraph(
     @Param('uuid') uuid: string,
     @Req() req: RequestLike,
@@ -265,6 +282,7 @@ export class GraphStoreController {
   }
 
   @Put('graphs/:uuid')
+  @UseGuards(JwtOrApiKeyGuard)
   async putMintedGraph(
     @Param('uuid') uuid: string,
     @Req() req: RequestLike,
@@ -283,6 +301,7 @@ export class GraphStoreController {
   }
 
   @Post('graphs/:uuid')
+  @UseGuards(JwtOrApiKeyGuard)
   @UseInterceptors(AnyFilesInterceptor({ storage: memoryStorage() }))
   async postMintedGraph(
     @Param('uuid') uuid: string,
@@ -303,6 +322,7 @@ export class GraphStoreController {
   }
 
   @Delete('graphs/:uuid')
+  @UseGuards(JwtOrApiKeyGuard)
   async deleteMintedGraph(
     @Param('uuid') uuid: string,
     @Req() req: RequestLike,
@@ -314,6 +334,7 @@ export class GraphStoreController {
   }
 
   @Patch('graphs/:uuid')
+  @UseGuards(JwtOrApiKeyGuard)
   @UseFilters(PatchMediaTypeFilter)
   async patchMintedGraph(
     @Param('uuid') uuid: string,
