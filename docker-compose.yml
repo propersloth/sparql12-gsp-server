@@ -1,0 +1,87 @@
+# NOTE: migrations are not run automatically on container start (there is
+# no production migration-runner script yet -- TypeORM's runMigrations()
+# is currently only invoked from test setup, see
+# tests/unit/database/schema.spec.ts and tests/integration/compliance.spec.ts).
+# Run migrations against `postgres` manually before using a freshly-created
+# database with this compose file.
+services:
+  gsp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gsp-server
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - GSP_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/gsp_db
+      - GSP_BASE_URL=http://localhost:3000
+      - GSP_AUTH_ENABLED=${GSP_AUTH_ENABLED:-true}
+      # No usable default -- AuthService fails closed if unset while auth
+      # is enabled (see #51 / SECURITY.md). Override via a .env file (or
+      # the shell environment) for anything beyond local experimentation.
+      - GSP_AUTH_JWT_SECRET=${GSP_AUTH_JWT_SECRET:-dev-secret-change-me}
+      - GSP_LOG_LEVEL=${GSP_LOG_LEVEL:-info}
+      - GSP_OTEL_ENABLED=${GSP_OTEL_ENABLED:-true}
+      - GSP_OTEL_ENDPOINT=http://jaeger:4318
+      - GSP_OTEL_SERVICE_NAME=gsp-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - gsp-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: gsp-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=gsp_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - gsp-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: gsp-jaeger
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+      - "4317:4317"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:16686"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - gsp-network
+
+volumes:
+  postgres_data:
+
+networks:
+  gsp-network:
+    driver: bridge

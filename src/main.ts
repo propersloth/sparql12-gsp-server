@@ -11,6 +11,12 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(PinoLogger).asNestLogger());
 
+  // Run onModuleDestroy/beforeApplicationShutdown hooks (e.g. closing the
+  // TypeORM connection) on SIGTERM/SIGINT, so container orchestrators
+  // (Docker, Compose, Kubernetes) get a clean shutdown instead of a hard
+  // kill. See Dockerfile's STOPSIGNAL SIGTERM.
+  app.enableShutdownHooks();
+
   const port = Number(process.env.PORT);
   await app.listen(Number.isFinite(port) && port > 0 ? port : 3000);
 }
