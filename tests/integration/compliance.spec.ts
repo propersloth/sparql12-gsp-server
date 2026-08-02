@@ -102,6 +102,16 @@ describe('GSP Compliance', () => {
 
     delete process.env.GSP_DISABLE_DB;
     process.env.GSP_DATABASE_URL = testDatabaseUrl;
+    // This suite predates issue #46 (auth guards wired to every mutation
+    // route via AppModule -> AuthModule -> the real ConfigService, which
+    // reads real env vars, unlike the bare-controller integration suites
+    // that override ConfigService via DI -- see tests/helpers/
+    // auth-test.helper.ts). None of this suite's requests carry auth
+    // credentials, so disable enforcement the same way #46 did for every
+    // other pre-existing integration suite: GSP_AUTH_ENABLED=false. This
+    // suite isn't testing auth, tests/integration/auth-enforcement.spec.ts
+    // (from #46) already covers that.
+    process.env.GSP_AUTH_ENABLED = 'false';
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { AppModule } = require('../../src/app.module');
     app = await createTestApp(AppModule);
