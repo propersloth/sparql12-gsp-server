@@ -95,10 +95,17 @@ export class GraphRepository {
   }
 
   async incrementVersionInTxn(m: EntityManager, id: string): Promise<number> {
-    const rows: Array<{ version: string }> = await m.query(
+    const result = await m.query(
       `UPDATE graphs SET version = version + 1, updated_at = now() WHERE id = $1 RETURNING version`,
       [id],
     );
+    // TypeORM's postgres driver returns raw UPDATE/INSERT/DELETE ... RETURNING
+    // queries as a `[rows, affectedRowCount]` tuple (unlike a plain SELECT,
+    // which resolves to the rows array directly) -- confirmed against a real
+    // Postgres instance while building the GSP-041 compliance suite, which
+    // caught this because it exercises the real driver instead of a mocked
+    // EntityManager. Unwrap defensively so both shapes work.
+    const rows: Array<{ version: string }> = Array.isArray(result[0]) ? result[0] : result;
     if (rows.length === 0) {
       throw new Error(`Data consistency error: graph ${id} not found during version increment`);
     }
