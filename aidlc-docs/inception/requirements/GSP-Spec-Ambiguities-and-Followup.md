@@ -6,7 +6,7 @@
 | ---------------------- | ----------------------------------------------------------------------------------- |
 | **Document type**      | Spec feedback / implementation report, for an external (W3C-facing) audience        |
 | **Conformance source** | [SPARQL 1.2 Graph Store Protocol — W3C Working Draft, 19 December 2024](https://www.w3.org/TR/2024/WD-sparql12-graph-store-protocol-20241219/) ("the WD") |
-| **Companion docs**     | `SPARQL12-GSP-URD.md` (source of the 14 Open Questions this document reframes) · [`GSP-W3C-Submission-Drafts.md`](./GSP-W3C-Submission-Drafts.md) (issue #54's draft submissions built on these findings) |
+| **Companion docs**     | `SPARQL12-GSP-URD.md` (source of the 14 Open Questions this document reframes). Draft W3C submission text built on these findings is tracked under issue [#54](https://github.com/propersloth/sparql12-gsp-server/issues/54) rather than kept as a repo doc — it's writing-prompt material for actual GitHub issues/comments, not itself a durable reference. |
 | **Audience**           | GSP spec editors, the SPARQL 1.2 Working Group, and other implementers of the WD    |
 
 ---
@@ -249,6 +249,6 @@ These are narrower gaps: deployment-specific choices, informative-section ambigu
 
 ## 5. Suggested next steps
 
-- **Before this goes anywhere near W3C:** Sean's review (per the tracking issue). Every clause citation in this document has now been checked directly against both the pinned 19 Dec 2024 WD and the live editors' draft (not just against our internal URD's paraphrasing of it) — see the Reference Index below for the verified sources. That verification pass is what sharpened the F1 finding (§7.1 is an empty heading, not merely "TODO" as the URD's shorthand had it) and surfaced two overlapping upstream GitHub issues (see the companion `GSP-W3C-Submission-Drafts.md`).
+- **Before this goes anywhere near W3C:** Sean's review (per the tracking issue). Every clause citation in this document has now been checked directly against both the pinned 19 Dec 2024 WD and the live editors' draft (not just against our internal URD's paraphrasing of it) — see the Reference Index below for the verified sources. That verification pass is what sharpened the F1 finding (§7.1 is an empty heading, not merely "TODO" as the URD's shorthand had it) and surfaced two overlapping upstream GitHub issues (tracked in issue #54).
 - If shared with the Working Group, F1 (conformance) and F3 (concurrency) are the two worth leading with — F1 because it's the one gap that undermines "conformant" as a meaningful claim at all, and F3 because it's the one with a real correctness (not just interop) consequence.
 - This document reflects one implementation's resolutions, offered as evidence of where the WD text left room for divergent-but-reasonable choices — not as a claim that our resolutions are the only correct ones or that they should be adopted as-is.
