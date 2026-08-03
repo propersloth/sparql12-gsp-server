@@ -74,7 +74,7 @@ This repository is a functioning SPARQL 1.2 Graph Store Protocol server. Milesto
 M5 (Integration & Observability) is in progress: structured logging + full OpenTelemetry SDK bootstrap (tracing and metrics export) and the full G1–G9 URD compliance suite are both done; production build/Docker packaging (GSP-042) is the remaining open item, tracked in [#35](https://github.com/propersloth/sparql12-gsp-server/issues/35).
 
 <details>
-<summary><strong>M1: Foundation</strong></summary>
+<summary><strong>M1 — Foundation</strong></summary>
 
 | Deliverable | Path |
 | --- | --- |
@@ -91,7 +91,7 @@ M5 (Integration & Observability) is in progress: structured logging + full OpenT
 </details>
 
 <details>
-<summary><strong>M2: Data Layer</strong></summary>
+<summary><strong>M2 — Data Layer</strong></summary>
 
 | Deliverable | Path |
 | --- | --- |
@@ -106,7 +106,7 @@ M5 (Integration & Observability) is in progress: structured logging + full OpenT
 </details>
 
 <details>
-<summary><strong>M3: Core Logic</strong></summary>
+<summary><strong>M3 — Core Logic</strong></summary>
 
 | Deliverable | Path |
 | --- | --- |
@@ -122,7 +122,7 @@ M5 (Integration & Observability) is in progress: structured logging + full OpenT
 </details>
 
 <details>
-<summary><strong>M4: HTTP Layer</strong></summary>
+<summary><strong>M4 — HTTP Layer</strong></summary>
 
 | Deliverable | Path |
 | --- | --- |
@@ -142,7 +142,7 @@ M5 (Integration & Observability) is in progress: structured logging + full OpenT
 </details>
 
 <details>
-<summary><strong>M5: Integration &amp; Observability (in progress)</strong></summary>
+<summary><strong>M5 — Integration &amp; Observability (in progress)</strong></summary>
 
 | Deliverable | Path |
 | --- | --- |
