@@ -1,6 +1,6 @@
 {
   "name": "sparql12-gsp-server",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "license": "MIT",
   "private": false,
   "description": "SPARQL 1.2 Graph Store Protocol Server",
